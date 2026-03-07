@@ -5,10 +5,11 @@
 #include "led_ws2812.hpp"
 #include "Monitor.hpp"
 #include "farcon.hpp"
+#include "IndustPC.hpp"
 SystemType& System = SystemType::GetInstance();
 LedWs2812 sys_ledband;
 Farcon farcon;
-
+IndustPC& pc = IndustPC::GetInstance();
 void SystemType::Init(bool Sc)
 {
     // 初始化DWT计时器
@@ -16,7 +17,7 @@ void SystemType::Init(bool Sc)
 
     // 初始化Monitor监视器
     // Monitor::GetInstance().Init(&huart2, nullptr, false);
-
+    
     // 初始化系统灯带
     sys_ledband.Init(&htim5, TIM_CHANNEL_4, 13);
     // 颜色偏置因子（用于校正颜色）
@@ -27,7 +28,7 @@ void SystemType::Init(bool Sc)
     
     // 遥控器初始化
     farcon.init(&huart3);
-    
+		pc.Init();
     // 自动开始自检
     if (Sc) status = Systems::SELF_CHECK;
 }
@@ -61,6 +62,7 @@ void SystemType::Run()
         Monitor::GetInstance().LogTrack();
         temp_cnt = 0;
     }
+		
 }
 
 void SystemType::_Update_LedBand()

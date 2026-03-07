@@ -24,10 +24,7 @@ void ChassisType::Update()
     {
         control_mode = FARCON;
     }
-		else if(farcon.toggle[1] == 1)
-    {
-        control_mode = OPEN;
-    }
+
     if(control_mode == FARCON)
     {
         // 读取遥控器数据到底盘控制变量
@@ -35,6 +32,11 @@ void ChassisType::Update()
         targ_speed.y = -farcon.jy_data_origin[2]*1.0f / 100.f * _max_velo;   // 左右
         targ_speed.z = -farcon.jy_data_origin[0]*1.0f / 100.f * _max_omega;  // 旋转
         this->Move(targ_speed, 100);
+    }
+
+    if(control_mode==DEBUG_MODE)
+    {
+        this->Move(targ_speed, 100);  
     }
 
     // 实现闭环的地方

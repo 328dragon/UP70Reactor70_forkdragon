@@ -874,6 +874,11 @@
               <FileType>8</FileType>
               <FilePath>..\Apps\src\MainFrame.cpp</FilePath>
             </File>
+            <File>
+              <FileName>IndustPC.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\Apps\src\IndustPC.cpp</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -924,11 +929,6 @@
               <FileType>8</FileType>
               <FilePath>..\Mods\src\farcon.cpp</FilePath>
             </File>
-            <File>
-              <FileName>farcon.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\Mods\src\farcon.cpp</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -970,6 +970,9 @@
               <FilePath>..\Sys\src\System.cpp</FilePath>
             </File>
           </Files>
+        </Group>
+        <Group>
+          <GroupName>::CMSIS</GroupName>
         </Group>
         <Group>
           <GroupName>Middlewares/Library/DSP Library/DSP Library</GroupName>
@@ -1068,9 +1071,6 @@
               </FileOption>
             </File>
           </Files>
-        </Group>
-        <Group>
-          <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
     </Target>

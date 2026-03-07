@@ -103,6 +103,7 @@ class ChassisType : public Application
             HOST,       // 由工控机控制
             FARCON,     // 由遥控器控制
             OPEN,       // 开放控制（直接Move控制）
+			DEBUG_MODE
         }_ChasConMode;
 
     public:

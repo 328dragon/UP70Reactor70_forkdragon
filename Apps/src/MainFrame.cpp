@@ -29,7 +29,7 @@ void MainFrameCpp()
     System.SetPositionSource(System.odometer.transform);
 
     System.RegistApp(chas);
-    
+
 //     grp.Degenerate(DegeAct);
 //     core.RegistGraph(grp);
 //     core.Enable(0);

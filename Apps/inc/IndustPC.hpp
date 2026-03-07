@@ -51,7 +51,10 @@ private:
 public:
 
     Vec3 slam_transform;
-
+    void Init()
+    {
+        Start();
+    }
     void Tell();
 };
 
