@@ -5,8 +5,9 @@
 
 #ifndef _FARCON_HPP_
 #define _FARCON_HPP_
+#include "stm32f4xx_hal.h"
 
-#include "bsp_uart.hpp"
+#include "bsp_uart.h"
 
 #define pos_data_length 10
 class Farcon
@@ -68,8 +69,7 @@ private:
     // 只与数据有关，安全
 public:
     uint32_t timestamp;
-    BSP::UART::Handler uart_inst;
-
+    BspUart_Instance uart_inst;
     Farcon()
     {
         self_instance = this; 
@@ -95,7 +95,7 @@ public:
     uint8_t toggle[4];//拨杆的状态，0表示外位置，1表示内位置（拨杆向板外、向板内）
     uint8_t button_first_half[8];//KEY0到KEY8的状态，按下为1，松开是0
     uint8_t button_second_half[8];//KEY9到KEY16的状态，按下为1，松开是0
-    uint8_t KFS_values[12];// KFS值分为四个：0表示初始状态，1表示R1块，2表示R2块，3表示假块
+    uint8_t KFS_values[12];// 遥控器从上往下分别是0-12。KFS值分为四个：0表示初始状态，1表示R1块，2表示R2块，3表示假块
     int jy_data_origin[4];//摇杆映射值，都是从-100到100，依次是LX,LY,RX,RY
     void init(UART_HandleTypeDef *huart);
     void Farcon_Back_message(Farcon *farcon_instance);

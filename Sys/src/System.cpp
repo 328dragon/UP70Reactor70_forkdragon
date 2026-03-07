@@ -15,7 +15,7 @@ void SystemType::Init(bool Sc)
     DWT_Init(CPU_HERT_A_BOARD_MHZ);
 
     // 初始化Monitor监视器
-    Monitor::GetInstance().Init(&huart2, nullptr, false);
+    // Monitor::GetInstance().Init(&huart2, nullptr, false);
 
     // 初始化系统灯带
     sys_ledband.Init(&htim5, TIM_CHANNEL_4, 13);

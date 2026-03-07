@@ -24,6 +24,10 @@ void ChassisType::Update()
     {
         control_mode = FARCON;
     }
+		else if(farcon.toggle[1] == 1)
+    {
+        control_mode = OPEN;
+    }
     if(control_mode == FARCON)
     {
         // 读取遥控器数据到底盘控制变量
