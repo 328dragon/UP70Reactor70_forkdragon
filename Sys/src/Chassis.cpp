@@ -1,9 +1,12 @@
 #include "Chassis.hpp"
 #include "arm_math.h"
 #include "Monitor.hpp"
+#include "IndustPC.hpp"
 
-ChassisType& test_chas = ChassisType::GetInstance();
+ChassisType &test_chas = ChassisType::GetInstance();
 extern Farcon farcon;
+Vec2 Debug_target = {0, 0};
+float _current_target_yaw = 0;
 
 void ChassisType::Start()
 {
@@ -12,7 +15,7 @@ void ChassisType::Start()
     {
         motors[i].Init(&hcan1, i + _start_id, MotorDJIMode::Speed_Control, false);
         motors[i].speed_pid.Init(3.6, 2.4, 0.0);
-        motors[i].speed_pid.ForwardLize(PidGeneral::SpeedForward, 0.75f, 5, 4.8); 			// 速度型前馈
+        motors[i].speed_pid.ForwardLize(PidGeneral::SpeedForward, 0.75f, 5, 4.8); // 速度型前馈
         motors[i].Enable();
     }
 }
@@ -20,23 +23,59 @@ void ChassisType::Start()
 void ChassisType::Update()
 {
     // 遥控器控制逻辑
-    if(farcon.toggle[1] == 0)
+    if (farcon.toggle[1] == 0)
     {
         control_mode = FARCON;
     }
 
-    if(control_mode == FARCON)
+    if (control_mode == FARCON)
     {
         // 读取遥控器数据到底盘控制变量
-        targ_speed.x = -farcon.jy_data_origin[3]*1.0f / 100.f * _max_velo;   // 前后
-        targ_speed.y = -farcon.jy_data_origin[2]*1.0f / 100.f * _max_velo;   // 左右
-        targ_speed.z = -farcon.jy_data_origin[0]*1.0f / 100.f * _max_omega;  // 旋转
+        targ_speed.x = -farcon.jy_data_origin[3] * 1.0f / 100.f * _max_velo;  // 前后
+        targ_speed.y = -farcon.jy_data_origin[2] * 1.0f / 100.f * _max_velo;  // 左右
+        targ_speed.z = -farcon.jy_data_origin[0] * 1.0f / 100.f * _max_omega; // 旋转
         this->Move(targ_speed, 100);
     }
 
-    if(control_mode==DEBUG_MODE)
+    static _ChasConMode last_control_mode = OPEN;
+
+    // ================= 1. 模式切换的“边缘检测” (核心锁存逻辑) =================
+    // 条件：当前是 DEBUG 模式，但上一次不是 (说明刚刚切进来)
+    if (control_mode == DEBUG_MODE && last_control_mode != DEBUG_MODE)
     {
-        this->Move(targ_speed, 100);  
+        // 瞬间锁死当前的真实 Yaw 角，存到目标变量里
+        IndustPC &_pc = IndustPC::GetInstance();
+        _current_target_yaw = _pc.slam_transform.z;
+
+        // 可以在这里加一句日志，方便串口助手观察：
+        // printf("Entered DEBUG_MODE! Yaw locked at: %f rad\r\n", _current_target_yaw);
+    }
+
+    // 更新历史状态，为下一次 5ms 周期做准备
+    last_control_mode = control_mode;
+
+    if (control_mode == DEBUG_MODE)
+    {
+        if (_is_navigating)
+        {
+            // 持续调用闭环算法，并传入类里缓存的最新目标
+            bool is_reached = this->TrackTargetWithLockedYaw(Debug_target, _current_target_yaw);
+
+            if (is_reached)
+            {
+                // 到达目标！执行刹车清零逻辑
+                _is_navigating = false;              // 清除导航标志
+                this->Move({0.0f, 0.0f, 0.0f}, 100); // 彻底刹停底盘
+                this->Rotate(0.0f);                  // 停止自转
+                // 可选：在这里通过串口给上位机发送一条消息："目标点已到达"
+            }
+        }
+        else
+        {
+            // 在 DEBUG 模式下，但没有任务（或者刚走完一个点），保持静止
+            this->Move({0.0f, 0.0f, 0.0f}, 100);
+            this->Rotate(0.0f);
+        }
     }
 
     // 实现闭环的地方
@@ -47,8 +86,8 @@ void ChassisType::Update()
     if (_rotating || _is_yaw_locked)
     {
         _Rotating();
-    } 
-    
+    }
+
     // 将底盘的 速度targ_speed 上传到各个电机
     _UploadSpeed();
 
@@ -61,38 +100,54 @@ void ChassisType::Update()
     _safe_lock_tick -= 5;
 }
 
-
 void ChassisType::_UpdateChasOdom()
 {
-    // （1）获得当前角度
-    float theta_distan = 0;     // 单位：米
+
+    int32_t snap_total_angle[4];
+    float snap_speed_rpm[4];
+
+    // 保存当前中断状态并关闭全局中断
+    // 注意：如果是 FreeRTOS 环境，请使用 taskENTER_CRITICAL();
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+
+    // 以极快的速度把此刻的 4 个电机状态全部“拍个照”存下来
     for (int i = 0; i < 4; i++)
     {
-        theta_distan += (_rev ? -1 : 1) * motors[i].measure.total_angle;
+        snap_total_angle[i] = motors[i].measure.total_angle;
+        snap_speed_rpm[i] = motors[i].measure.speed_rpm;
+    }
+
+    // 立刻恢复中断，不要耽误 CAN 接收
+    // 如果是 FreeRTOS 环境，请使用 taskEXIT_CRITICAL();
+    __set_PRIMASK(primask);
+
+    // （1）获得当前角度 (全部改用 snap_total_angle 计算)
+    float theta_distan = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        theta_distan += (_rev ? -1 : 1) * snap_total_angle[i]; // 使用快照数据！
     }
     theta_distan = theta_distan / (MotorDJIConst::redu_M3508 * 8192) * (PI * WHEEL_DIAMETER) / 4.0f;
-    float chas_theta = theta_distan / ROTATE_RADIUS;   // 单位：弧度
-    
-    // （2）获取车体速度(读取而不是控制的速度，以减少误差)
-    Vec3 chas_speed;        // 都是线速度
-    // 旋转分量
+    float chas_theta = theta_distan / ROTATE_RADIUS;
+
+    // （2）获取车体速度 (全部改用 snap_speed_rpm 计算)
+    Vec3 chas_speed = {0.0f, 0.0f, 0.0f};
     for (int i = 0; i < 4; i++)
     {
-        chas_speed.z += (_rev ? -1 : 1) * motors[i].measure.speed_rpm;
+        chas_speed.z += (_rev ? -1 : 1) * snap_speed_rpm[i]; // 使用快照数据！
     }
     chas_speed.z = (chas_speed.z / 240.0f) / (MotorDJIConst::redu_M3508) * (PI * WHEEL_DIAMETER);
 
-    // 获得每个电机不带旋转速度的线速度分量（用于计算x, y方向上的速度）
     float motor_spd_xy[4] = {0};
     for (int i = 0; i < 4; i++)
     {
-        motor_spd_xy[i] = ((_rev ? -1 : 1) * motors[i].measure.speed_rpm / 60.0f / MotorDJIConst::redu_M3508) * (PI * WHEEL_DIAMETER) - chas_speed.z;
+        motor_spd_xy[i] = ((_rev ? -1 : 1) * snap_speed_rpm[i] / 60.0f / MotorDJIConst::redu_M3508) * (PI * WHEEL_DIAMETER) - chas_speed.z; // 使用快照数据！
     }
 
     Vec2 chas_vxy;
     chas_vxy.x = (motor_spd_xy[1] - motor_spd_xy[2]) / 2.0f;
     chas_vxy.y = (motor_spd_xy[0] - motor_spd_xy[3]) / 2.0f;
-
 
     // （3）更新里程计，还有速率
     Vec2 delta_move = chas_vxy.Rotate(chas_theta + (PI / 4)) / 200.0f;
@@ -100,11 +155,10 @@ void ChassisType::_UpdateChasOdom()
 
     chas_odom.speed = (delta_move * 200.0f).ToVec3();
     chas_odom.speed.z = chas_speed.z;
-    
+
     chas_odom.pos = chas_odom.pos + delta_move.ToVec3();
     chas_odom.pos.z = chas_theta;
 }
-
 
 void ChassisType::_UploadSpeed()
 {
@@ -122,7 +176,7 @@ void ChassisType::_UploadSpeed()
         }
         been_in_natural = false;
     }
-    
+
     // 仅当底盘使能时才工作
     if (enabled && _safe_lock_tick > 0)
     {
@@ -133,12 +187,13 @@ void ChassisType::_UploadSpeed()
     {
         // 底盘未使能，分两种情况
         // (1) 底盘仍有速度，且从未进过空档
-        if(targ_speed.Length() > 0.1f && !been_in_natural)
+        if (targ_speed.Length() > 0.1f && !been_in_natural)
         {
-            if (runtime_cnt < 0.001f)   runtime_cnt = System.runtime_tick;
+            if (runtime_cnt < 0.001f)
+                runtime_cnt = System.runtime_tick;
 
             // (1.1) 仍有速度，先刹车停
-            if(System.runtime_tick - runtime_cnt < 1.0f)
+            if (System.runtime_tick - runtime_cnt < 1.0f)
             {
                 // 否定其他接口的控制权，并进行刹车(刹车速度: 2m/s^2)
                 targ_speed = targ_speed * 0.97f;
@@ -150,7 +205,7 @@ void ChassisType::_UploadSpeed()
 
                 _SendSpdToMotor();
             }
-            else    // (1.2) 1s还停不下来，强制进入空档
+            else // (1.2) 1s还停不下来，强制进入空档
             {
                 for (int i = 0; i < 4; i++)
                 {
@@ -160,7 +215,7 @@ void ChassisType::_UploadSpeed()
                 }
             }
         }
-        else    // (2) 底盘已经停止，直接进入空档
+        else // (2) 底盘已经停止，直接进入空档
         {
             for (int i = 0; i < 4; i++)
             {
@@ -177,9 +232,9 @@ void ChassisType::_UploadSpeed()
 inline void ChassisType::_SendSpdToMotor()
 {
     // 计算x, y, w合成分量
-    _motor_spd[0] = (-targ_speed.x + targ_speed.y)  / (BSP_SQRT2) + targ_speed.z * ROTATE_RADIUS;
+    _motor_spd[0] = (-targ_speed.x + targ_speed.y) / (BSP_SQRT2) + targ_speed.z * ROTATE_RADIUS;
     _motor_spd[1] = (targ_speed.x + targ_speed.y) / (BSP_SQRT2) + targ_speed.z * ROTATE_RADIUS;
-    _motor_spd[2] = (-targ_speed.x - targ_speed.y)  / (BSP_SQRT2) + targ_speed.z * ROTATE_RADIUS;
+    _motor_spd[2] = (-targ_speed.x - targ_speed.y) / (BSP_SQRT2) + targ_speed.z * ROTATE_RADIUS;
     _motor_spd[3] = (targ_speed.x - targ_speed.y) / (BSP_SQRT2) + targ_speed.z * ROTATE_RADIUS;
 
     // 发送速度指令到电机
@@ -201,7 +256,6 @@ void ChassisType::Config(bool rev, uint8_t start_id)
     _start_id = start_id;
 }
 
-
 void ChassisType::Enable()
 {
     enabled = true;
@@ -212,7 +266,6 @@ void ChassisType::Disable()
     // 停止所有电机
     enabled = false;
 }
-
 
 void ChassisType::MoveAt(Vec2 Pos)
 {
@@ -230,7 +283,7 @@ void ChassisType::_DisableBrake()
 {
     if (targ_speed.x > 0.01f || targ_speed.x < -0.01f)
     {
-        targ_speed.x = targ_speed.x - (2.0f /  200.0f) * (targ_speed.x > 0 ? 1 : -1);
+        targ_speed.x = targ_speed.x - (2.0f / 200.0f) * (targ_speed.x > 0 ? 1 : -1);
     }
     else
     {
@@ -239,7 +292,7 @@ void ChassisType::_DisableBrake()
 
     if (targ_speed.y > 0.01f || targ_speed.y < -0.01f)
     {
-        targ_speed.y = targ_speed.y - (2.0f /  200.0f) * (targ_speed.y > 0 ? 1 : -1);
+        targ_speed.y = targ_speed.y - (2.0f / 200.0f) * (targ_speed.y > 0 ? 1 : -1);
     }
     else
     {
@@ -248,7 +301,7 @@ void ChassisType::_DisableBrake()
 
     if (targ_speed.z > 0.01f || targ_speed.z < -0.01f)
     {
-        targ_speed.z = targ_speed.z - (2.0f /  200.0f) * (targ_speed.z > 0 ? 1 : -1);
+        targ_speed.z = targ_speed.z - (2.0f / 200.0f) * (targ_speed.z > 0 ? 1 : -1);
     }
     else
     {
@@ -259,11 +312,11 @@ void ChassisType::_DisableBrake()
 /**
  * @brief 直接设置底盘速度（一个通用的开环行为）
  * @param Spd 期望速度：（x: 前向速度，y：左向速度，w：逆时针）（m/s，m/s，rad/s）
- * @note 轮序：     
+ * @note 轮序：
  *                      前
  *                  0       1
- *                  
- * 
+ *
+ *
  *                  2       3
  * @warning 每次设置速度都会刷新安全锁，需要持续调用以保持底盘运动。
  * 在指令中断100ms后，底盘会自动进入空档（0电流）状态。
@@ -271,7 +324,8 @@ void ChassisType::_DisableBrake()
  */
 void ChassisType::Move(Vec3 Spd, uint32_t duration)
 {
-    if (!enabled)  return;         // 开放控制未使能，直接返回
+    if (!enabled)
+        return; // 开放控制未使能，直接返回
 
     // 验证输入安全
     if (isnan(Spd.x) || isnan(Spd.y) || isnan(Spd.z) ||
@@ -285,10 +339,10 @@ void ChassisType::Move(Vec3 Spd, uint32_t duration)
     targ_speed = Spd;
 }
 
-
 void ChassisType::Move(Vec2 Spd, uint32_t duration)
 {
-    if (!enabled)  return;
+    if (!enabled)
+        return;
 
     // 验证输入安全
     if (isnan(Spd.x) || isnan(Spd.y) ||
@@ -304,7 +358,8 @@ void ChassisType::Move(Vec2 Spd, uint32_t duration)
 
 void ChassisType::Rotate(float omega)
 {
-    if (!enabled)  return;
+    if (!enabled)
+        return;
 
     // 验证输入安全
     if (isnan(omega) || omega == INFINITY)
@@ -312,7 +367,7 @@ void ChassisType::Rotate(float omega)
         Monitor::GetInstance().LogError("Chassis: Dangerous omega!");
         return;
     }
-    
+
     // 输入合法化
     if (omega > _max_omega)
     {
@@ -322,14 +377,10 @@ void ChassisType::Rotate(float omega)
     {
         omega = -_max_omega;
     }
-    
+
     _safe_lock_tick = 100;
     targ_speed.z = omega;
 }
-
-
-
-
 
 /**
  * @brief 基于直接移动到位置的方式
@@ -345,29 +396,29 @@ bool ChassisType::_Walking()
     move_vec = move_vec.Rotate(-System.position.z);
 
     // 检查是否到达目标位置, 如果是则返回完成
-    if (move_vec.Length() < 0.01f)    // 5cm范围内视为到达
+    if (move_vec.Length() < 0.01f) // 5cm范围内视为到达
     {
-        Move(Vec2(0, 0));           // 停止移动
+        Move(Vec2(0, 0)); // 停止移动
         _walking = false;
-        return true;                 // 动作完成
+        return true; // 动作完成
     }
 
     // 计算移动速度
-    float safe_velo = sqrt(1 * _max_accel * move_vec.Length()); 
+    float safe_velo = sqrt(1 * _max_accel * move_vec.Length());
     float out_velo = 3.0f * move_vec.Length();
     // 最终的速度应该为三者中的最小值
     float final_velo = fminf(safe_velo, fminf(out_velo, _max_velo));
 
     // 更新底盘速度（向量式更新，保证更新量不大于MaxAccel）
-    Vec2 targ_speed_vec = move_vec.Norm() * final_velo;     // 计算新的目标速度
-    Vec2 curr_speed_vec = targ_speed.ToVec2();           // 当前速度
-    
+    Vec2 targ_speed_vec = move_vec.Norm() * final_velo; // 计算新的目标速度
+    Vec2 curr_speed_vec = targ_speed.ToVec2();          // 当前速度
+
     // 计算速度差
     Vec2 delta_speed_vec = targ_speed_vec - curr_speed_vec;
     float delta_speed_len = delta_speed_vec.Length();
 
     // 限制加速度（向量长度自带绝对值）
-    if (delta_speed_len > (_max_accel / 200.0f))   // 每次调用都是1 / 200s
+    if (delta_speed_len > (_max_accel / 200.0f)) // 每次调用都是1 / 200s
     {
         delta_speed_vec = delta_speed_vec.Norm() * (_max_accel / 200.0f);
     }
@@ -375,7 +426,7 @@ bool ChassisType::_Walking()
 
     // 调用移动接口进行移动
     Move(new_speed_vec);
-		
+
     return false;
 }
 
@@ -391,15 +442,15 @@ bool ChassisType::_Rotating()
     float rotate_diff = (targ_ges.z - System.position.z);
 
     // 检查是否到达目标位置, 如果是则返回完成
-    if (fabs(rotate_diff) < 0.007f)    // 0.007rad范围内视为到达
+    if (fabs(rotate_diff) < 0.007f) // 0.007rad范围内视为到达
     {
-        Rotate(0);           // 停止
+        Rotate(0); // 停止
         _rotating = false;
-        return true;                 // 动作完成
+        return true; // 动作完成
     }
-    
+
     // 计算旋转速度 （注意绝对值）
-    float safe_omega = sqrt(1 * _max_beta * fabs(rotate_diff)); 
+    float safe_omega = sqrt(1 * _max_beta * fabs(rotate_diff));
     float out_omega = 3.0f * fabs(rotate_diff);
 
     // 最终的速度应该为三者中的最小值
@@ -410,15 +461,66 @@ bool ChassisType::_Rotating()
     float delta_speed = targ_omega * (rotate_diff > 0 ? 1 : -1) - targ_speed.z;
 
     // 限制加速度（注意绝对值）
-    if (fabs(delta_speed) > (_max_beta / 200.0f))   // 每次调用都是1 / 200s
+    if (fabs(delta_speed) > (_max_beta / 200.0f)) // 每次调用都是1 / 200s
     {
         delta_speed = (delta_speed > 0 ? 1 : -1) * (_max_beta / 200.0f);
     }
-    
+
     float new_omega = targ_speed.z + delta_speed;
 
     // 调用旋转接口进行移动
     Rotate(new_omega);
-		
+
+    return false;
+}
+
+bool ChassisType::TrackTargetWithLockedYaw(Vec2 target_pos, float locked_yaw)
+{
+    float M_PI = 3.1415926f;
+
+    IndustPC &_pc = IndustPC::GetInstance();
+    float current_x = _pc.slam_transform.x;
+    float current_y = _pc.slam_transform.y;
+    float current_yaw = _pc.slam_transform.z;
+
+    float dx = target_pos.x - current_x;
+    float dy = target_pos.y - current_y;
+    float distance = sqrt(dx * dx + dy * dy);
+
+    float yaw_error = locked_yaw - current_yaw;
+    while (yaw_error > M_PI)
+        yaw_error -= 2 * M_PI;
+    while (yaw_error < -M_PI)
+        yaw_error += 2 * M_PI;
+
+    this->MoveAt(target_pos); // 调用你现有的 XY 平移闭环
+
+    // 计算并下发自转角速度 (带比例控制和安全限幅)
+    float target_omega = 0.0f;
+    if (fabs(yaw_error) > 0.007f) // 角度控制死区：约 0.4 度
+    {
+        float Kp = 3.0f;
+        target_omega = Kp * yaw_error;
+
+        // 限制最大角加速度防打滑
+        float safe_omega = sqrt(_max_beta * fabs(yaw_error));
+        if (fabs(target_omega) > safe_omega)
+        {
+            target_omega = safe_omega * (yaw_error > 0 ? 1.0f : -1.0f);
+        }
+    }
+    this->Rotate(target_omega);
+
+    // 设定容忍度（死区）：位置误差 < 3cm 且 角度误差 < 约1度
+    float pos_tolerance = 0.03f;
+    float yaw_tolerance = 0.017f;
+
+    if (distance <= pos_tolerance && fabs(yaw_error) <= yaw_tolerance)
+    {
+        // 可以在这里强制下发一次 0 速度，确保刹停
+        this->Rotate(0.0f);
+        return true;
+    }
+
     return false;
 }

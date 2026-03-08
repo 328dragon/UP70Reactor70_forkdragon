@@ -6,7 +6,6 @@ ChassisType& chas_ = ChassisType::GetInstance();
 
 
 
-
 void IndustPC::Start()
 {
     indupc_coder.Init(&huart2);//Monitor也使用了huart2，现在在System.cpp中被注释掉了
@@ -66,4 +65,5 @@ void IndustPC_Callback(UART_HandleTypeDef *huart, uint8_t *rxData, uint8_t size)
         }
     }
 }
+
 

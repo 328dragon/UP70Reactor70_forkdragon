@@ -9,7 +9,7 @@
 SystemType& System = SystemType::GetInstance();
 LedWs2812 sys_ledband;
 Farcon farcon;
-IndustPC& pc = IndustPC::GetInstance();
+
 void SystemType::Init(bool Sc)
 {
     // 初始化DWT计时器
@@ -28,7 +28,7 @@ void SystemType::Init(bool Sc)
     
     // 遥控器初始化
     farcon.init(&huart3);
-		pc.Init();
+
     // 自动开始自检
     if (Sc) status = Systems::SELF_CHECK;
 }

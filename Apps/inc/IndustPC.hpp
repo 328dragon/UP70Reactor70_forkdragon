@@ -51,10 +51,13 @@ private:
 public:
 
     Vec3 slam_transform;
-    void Init()
-    {
-        Start();
-    }
+    // void Init()
+	// 	{
+	// 	Start();
+		
+	// 	}			
+        
+    
     void Tell();
 };
 
@@ -83,7 +86,7 @@ public:
 目标速度环：    0xA0
 目标速度环数据：小端(float xm/s , float y m/s, float yawrad/s)      共12byte
 
-目标位置环：    0xA1
+坐标：    0xA1
 目标位置环数据：小端(float xm , float y m, float yawrad)            共12byte
 
 slam位置：      0xBB

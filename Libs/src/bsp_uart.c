@@ -112,3 +112,46 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
         }
     }
 }
+
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+    // 遍历所有实例，根据huart通道，找到对应的实例
+    for (int i = 0; i < bspuart_inst_count; i++)
+    {
+        BspUart_Instance *inst = bspuart_insts[i]; // 取出实例
+        if (inst->huart == huart)
+        {
+            // 1. 判断并清除溢出错误 (ORE) 标志
+            if (__HAL_UART_GET_FLAG(huart, UART_FLAG_ORE) != RESET)
+            {
+                __HAL_UART_CLEAR_OREFLAG(huart);
+            }
+            
+            // 顺手清除帧错误(FE)和噪声错误(NE)标志，防止产生连环中断
+            if (__HAL_UART_GET_FLAG(huart, UART_FLAG_FE) != RESET)
+            {
+                __HAL_UART_CLEAR_FEFLAG(huart);
+            }
+            if (__HAL_UART_GET_FLAG(huart, UART_FLAG_NE) != RESET)
+            {
+                __HAL_UART_CLEAR_NEFLAG(huart);
+            }
+
+            // 2. 关键步骤：强行复位 HAL 库的接收状态机
+            // 发生错误时，HAL库可能会把状态锁死在 BUSY 或者 ERROR，这里强制释放
+            huart->RxState = HAL_UART_STATE_READY;
+            __HAL_UNLOCK(huart);
+
+            // 3. 清空缓冲区，丢弃出错这帧的脏数据
+            memset(inst->rx_buffer, 0, inst->rx_setlen);
+
+            // 4. 重新使能 DMA 接收并关闭半满中断 (与你原本的接收逻辑保持完全一致)
+            HAL_UARTEx_ReceiveToIdle_DMA(huart, inst->rx_buffer, inst->rx_setlen);
+            __HAL_DMA_DISABLE_IT(huart->hdmarx, DMA_IT_HT);
+
+            // 匹配成功并处理完毕，直接跳出循环，提高运行效率
+            break; 
+        }
+    }
+}

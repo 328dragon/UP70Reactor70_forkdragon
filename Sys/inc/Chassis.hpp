@@ -135,6 +135,8 @@ class ChassisType : public Application
 
         void MoveAt(Vec2 Pos);
         void RotateAt(float yaw);
+       bool TrackTargetWithLockedYaw(Vec2 target_pos, float locked_yaw);
+			 bool _is_navigating;       // 标记当前是否正在执行导航任务
         // const ChasAPIHandle& MoveAt(Vec2 Pos);
 };
 

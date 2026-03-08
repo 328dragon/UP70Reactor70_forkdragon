@@ -935,6 +935,11 @@
           <GroupName>Sys</GroupName>
           <Files>
             <File>
+              <FileName>Chassis.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\Sys\src\Chassis.cpp</FilePath>
+            </File>
+            <File>
               <FileName>RtosCpp.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\Sys\src\RtosCpp.cpp</FilePath>
@@ -943,11 +948,6 @@
               <FileName>StateCore.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\Sys\src\StateCore.cpp</FilePath>
-            </File>
-            <File>
-              <FileName>Chassis.cpp</FileName>
-              <FileType>8</FileType>
-              <FilePath>..\Sys\src\Chassis.cpp</FilePath>
             </File>
             <File>
               <FileName>Action.cpp</FileName>
@@ -970,9 +970,6 @@
               <FilePath>..\Sys\src\System.cpp</FilePath>
             </File>
           </Files>
-        </Group>
-        <Group>
-          <GroupName>::CMSIS</GroupName>
         </Group>
         <Group>
           <GroupName>Middlewares/Library/DSP Library/DSP Library</GroupName>
@@ -1071,6 +1068,9 @@
               </FileOption>
             </File>
           </Files>
+        </Group>
+        <Group>
+          <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
     </Target>

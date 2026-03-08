@@ -3,11 +3,11 @@
 #include "Chassis.hpp"
 #include "Monitor.hpp"
 #include "std_cpp.h"
-
+#include "IndustPC.hpp"
 ChassisType& chas = ChassisType::GetInstance();
 StateGraph grp("Test");
 StateCore& core = StateCore::GetInstance();
-
+IndustPC& pc = IndustPC::GetInstance();
 void DegeAct(StateCore* core);
 
 /**
@@ -25,11 +25,11 @@ void MainFrameCpp()
     System.monit.Track(chas.motors[3].targ_current);
 
     chas.Config(true);
-
+		
     System.SetPositionSource(System.odometer.transform);
 
     System.RegistApp(chas);
-
+    System.RegistApp(pc);
 //     grp.Degenerate(DegeAct);
 //     core.RegistGraph(grp);
 //     core.Enable(0);
