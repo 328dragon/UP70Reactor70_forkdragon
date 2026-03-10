@@ -4,10 +4,12 @@
 #include "IndustPC.hpp"
 
 ChassisType &test_chas = ChassisType::GetInstance();
-extern Farcon farcon;
-Vec2 Debug_target = {0, 0};
-float _current_target_yaw = 0;
 
+extern Farcon farcon;
+extern Vec3 chas_pos;
+extern Vec3 slam_pos;
+Vec2 Debug_set_target = {0, 0};
+ int begin_flag=-1;
 void ChassisType::Start()
 {
     // 初始化电机
@@ -37,45 +39,16 @@ void ChassisType::Update()
         this->Move(targ_speed, 100);
     }
 
-    static _ChasConMode last_control_mode = OPEN;
-
-    // ================= 1. 模式切换的“边缘检测” (核心锁存逻辑) =================
-    // 条件：当前是 DEBUG 模式，但上一次不是 (说明刚刚切进来)
-    if (control_mode == DEBUG_MODE && last_control_mode != DEBUG_MODE)
+    if (control_mode == DEBUG_NAVIG)
     {
-        // 瞬间锁死当前的真实 Yaw 角，存到目标变量里
         IndustPC &_pc = IndustPC::GetInstance();
-        _current_target_yaw = _pc.slam_transform.z;
-
-        // 可以在这里加一句日志，方便串口助手观察：
-        // printf("Entered DEBUG_MODE! Yaw locked at: %f rad\r\n", _current_target_yaw);
+	    this->MoveAt({slam_pos.x, slam_pos.y});
+        this->RotateAt(slam_pos.z); 		
     }
 
-    // 更新历史状态，为下一次 5ms 周期做准备
-    last_control_mode = control_mode;
-
-    if (control_mode == DEBUG_MODE)
+    if (control_mode == DEBUG_SET_MODE)
     {
-        if (_is_navigating)
-        {
-            // 持续调用闭环算法，并传入类里缓存的最新目标
-            bool is_reached = this->TrackTargetWithLockedYaw(Debug_target, _current_target_yaw);
-
-            if (is_reached)
-            {
-                // 到达目标！执行刹车清零逻辑
-                _is_navigating = false;              // 清除导航标志
-                this->Move({0.0f, 0.0f, 0.0f}, 100); // 彻底刹停底盘
-                this->Rotate(0.0f);                  // 停止自转
-                // 可选：在这里通过串口给上位机发送一条消息："目标点已到达"
-            }
-        }
-        else
-        {
-            // 在 DEBUG 模式下，但没有任务（或者刚走完一个点），保持静止
-            this->Move({0.0f, 0.0f, 0.0f}, 100);
-            this->Rotate(0.0f);
-        }
+        this->Move(Debug_set_target, 100);
     }
 
     // 实现闭环的地方
@@ -156,8 +129,15 @@ void ChassisType::_UpdateChasOdom()
     chas_odom.speed = (delta_move * 200.0f).ToVec3();
     chas_odom.speed.z = chas_speed.z;
 
-    chas_odom.pos = chas_odom.pos + delta_move.ToVec3();
-    chas_odom.pos.z = chas_theta;
+    if (control_mode == DEBUG_NAVIG)
+    {
+        chas_odom.pos = chas_pos;
+    }
+    else
+    {
+        chas_odom.pos = chas_odom.pos + delta_move.ToVec3();
+        chas_odom.pos.z = chas_theta;
+    }
 }
 
 void ChassisType::_UploadSpeed()
@@ -391,9 +371,17 @@ void ChassisType::Rotate(float omega)
 bool ChassisType::_Walking()
 {
     // 计算移动向量
-    Vec2 move_vec = targ_ges.ToVec2() - System.position.ToVec2();
+Vec2 move_vec;
     // 带入车体旋转
-    move_vec = move_vec.Rotate(-System.position.z);
+ if (control_mode == DEBUG_NAVIG)
+    {
+				     move_vec = targ_ges.ToVec2() - chas_pos.ToVec2();
+			 move_vec = move_vec.Rotate(-chas_pos.z);
+		}else{
+		     move_vec = targ_ges.ToVec2() - System.position.ToVec2();
+			 move_vec = move_vec.Rotate(-System.position.z);
+		}
+   
 
     // 检查是否到达目标位置, 如果是则返回完成
     if (move_vec.Length() < 0.01f) // 5cm范围内视为到达
@@ -439,7 +427,12 @@ bool ChassisType::_Walking()
 bool ChassisType::_Rotating()
 {
     // 计算旋转向量 （速度Rad / s)
-    float rotate_diff = (targ_ges.z - System.position.z);
+	float rotate_diff;
+	 if (control_mode == DEBUG_NAVIG)
+	 {
+	 rotate_diff = (targ_ges.z - chas_pos.z);
+	 }else 
+     rotate_diff = (targ_ges.z - System.position.z);
 
     // 检查是否到达目标位置, 如果是则返回完成
     if (fabs(rotate_diff) < 0.007f) // 0.007rad范围内视为到达
@@ -470,57 +463,6 @@ bool ChassisType::_Rotating()
 
     // 调用旋转接口进行移动
     Rotate(new_omega);
-
-    return false;
-}
-
-bool ChassisType::TrackTargetWithLockedYaw(Vec2 target_pos, float locked_yaw)
-{
-    float M_PI = 3.1415926f;
-
-    IndustPC &_pc = IndustPC::GetInstance();
-    float current_x = _pc.slam_transform.x;
-    float current_y = _pc.slam_transform.y;
-    float current_yaw = _pc.slam_transform.z;
-
-    float dx = target_pos.x - current_x;
-    float dy = target_pos.y - current_y;
-    float distance = sqrt(dx * dx + dy * dy);
-
-    float yaw_error = locked_yaw - current_yaw;
-    while (yaw_error > M_PI)
-        yaw_error -= 2 * M_PI;
-    while (yaw_error < -M_PI)
-        yaw_error += 2 * M_PI;
-
-    this->MoveAt(target_pos); // 调用你现有的 XY 平移闭环
-
-    // 计算并下发自转角速度 (带比例控制和安全限幅)
-    float target_omega = 0.0f;
-    if (fabs(yaw_error) > 0.007f) // 角度控制死区：约 0.4 度
-    {
-        float Kp = 3.0f;
-        target_omega = Kp * yaw_error;
-
-        // 限制最大角加速度防打滑
-        float safe_omega = sqrt(_max_beta * fabs(yaw_error));
-        if (fabs(target_omega) > safe_omega)
-        {
-            target_omega = safe_omega * (yaw_error > 0 ? 1.0f : -1.0f);
-        }
-    }
-    this->Rotate(target_omega);
-
-    // 设定容忍度（死区）：位置误差 < 3cm 且 角度误差 < 约1度
-    float pos_tolerance = 0.03f;
-    float yaw_tolerance = 0.017f;
-
-    if (distance <= pos_tolerance && fabs(yaw_error) <= yaw_tolerance)
-    {
-        // 可以在这里强制下发一次 0 速度，确保刹停
-        this->Rotate(0.0f);
-        return true;
-    }
 
     return false;
 }

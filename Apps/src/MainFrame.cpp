@@ -9,7 +9,7 @@ StateGraph grp("Test");
 StateCore& core = StateCore::GetInstance();
 IndustPC& pc = IndustPC::GetInstance();
 void DegeAct(StateCore* core);
-
+extern Vec3 chas_pos;
 /**
  * @brief 程序主入口
  * @warning 严禁阻塞
@@ -27,7 +27,8 @@ void MainFrameCpp()
     chas.Config(true);
 		
     System.SetPositionSource(System.odometer.transform);
-
+    // System.SetPositionSource(chas_pos);
+    
     System.RegistApp(chas);
     System.RegistApp(pc);
 //     grp.Degenerate(DegeAct);

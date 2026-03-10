@@ -4,8 +4,8 @@
 void IndustPC_Callback(UART_HandleTypeDef *huart, uint8_t *rxData, uint8_t size);
 ChassisType& chas_ = ChassisType::GetInstance();
 
-
-
+Vec3 chas_pos;
+Vec3 slam_pos;
 void IndustPC::Start()
 {
     indupc_coder.Init(&huart2);//Monitor也使用了huart2，现在在System.cpp中被注释掉了
@@ -48,16 +48,16 @@ void IndustPC_Callback(UART_HandleTypeDef *huart, uint8_t *rxData, uint8_t size)
             // 解析并覆盖底盘的位置环
             case IndustPCConst::ChasPos_Code:
             {
-                Vec3 chas_pos;
+                
                 memcpy(&chas_pos, &rxData[2], sizeof(Vec3));
 //                chas_.MoveAt(chas_pos.ToVec2());
 //                chas_.RotateAt(chas_pos.z);
                 break;
             }
-            // 获取SLAM的坐标
+            // 获取SLAM的坐标--
             case IndustPCConst::SlamPos_Code:
             {
-                Vec3 slam_pos;
+     
                 memcpy(&slam_pos, &rxData[2], sizeof(Vec3));
                 IndustPC::GetInstance().slam_transform = slam_pos;
                 break;
