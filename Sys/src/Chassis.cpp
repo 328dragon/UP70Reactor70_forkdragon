@@ -9,7 +9,6 @@ extern Farcon farcon;
 extern Vec3 chas_pos;
 extern Vec3 slam_pos;
 Vec2 Debug_set_target = {0, 0};
- int begin_flag=-1;
 void ChassisType::Start()
 {
     // 初始化电机
@@ -25,6 +24,8 @@ void ChassisType::Start()
 void ChassisType::Update()
 {
     // 遥控器控制逻辑
+//    control_mode = DEBUG_NAVIG;
+//    farcon.toggle[1] = 1;
     if (farcon.toggle[1] == 0)
     {
         control_mode = FARCON;
@@ -42,8 +43,8 @@ void ChassisType::Update()
     if (control_mode == DEBUG_NAVIG)
     {
         IndustPC &_pc = IndustPC::GetInstance();
-	    this->MoveAt({slam_pos.x, slam_pos.y});
-        this->RotateAt(slam_pos.z); 		
+        this->MoveAt({slam_pos.x, slam_pos.y});
+        this->RotateAt(slam_pos.z);
     }
 
     if (control_mode == DEBUG_SET_MODE)
@@ -371,17 +372,18 @@ void ChassisType::Rotate(float omega)
 bool ChassisType::_Walking()
 {
     // 计算移动向量
-Vec2 move_vec;
+    Vec2 move_vec;
     // 带入车体旋转
- if (control_mode == DEBUG_NAVIG)
+    if (control_mode == DEBUG_NAVIG)
     {
-				     move_vec = targ_ges.ToVec2() - chas_pos.ToVec2();
-			 move_vec = move_vec.Rotate(-chas_pos.z);
-		}else{
-		     move_vec = targ_ges.ToVec2() - System.position.ToVec2();
-			 move_vec = move_vec.Rotate(-System.position.z);
-		}
-   
+        move_vec = targ_ges.ToVec2() - chas_pos.ToVec2();
+        move_vec = move_vec.Rotate(-chas_pos.z);
+    }
+    else
+    {
+        move_vec = targ_ges.ToVec2() - System.position.ToVec2();
+        move_vec = move_vec.Rotate(-System.position.z);
+    }
 
     // 检查是否到达目标位置, 如果是则返回完成
     if (move_vec.Length() < 0.01f) // 5cm范围内视为到达
@@ -427,12 +429,13 @@ Vec2 move_vec;
 bool ChassisType::_Rotating()
 {
     // 计算旋转向量 （速度Rad / s)
-	float rotate_diff;
-	 if (control_mode == DEBUG_NAVIG)
-	 {
-	 rotate_diff = (targ_ges.z - chas_pos.z);
-	 }else 
-     rotate_diff = (targ_ges.z - System.position.z);
+    float rotate_diff;
+    if (control_mode == DEBUG_NAVIG)
+    {
+        rotate_diff = (targ_ges.z - chas_pos.z);
+    }
+    else
+        rotate_diff = (targ_ges.z - System.position.z);
 
     // 检查是否到达目标位置, 如果是则返回完成
     if (fabs(rotate_diff) < 0.007f) // 0.007rad范围内视为到达
