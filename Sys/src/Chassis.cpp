@@ -24,8 +24,9 @@ void ChassisType::Start()
 void ChassisType::Update()
 {
     // 遥控器控制逻辑
-//    control_mode = DEBUG_NAVIG;
-//    farcon.toggle[1] = 1;
+    control_mode = DEBUG_NAVIG;
+    farcon.toggle[1] = 1;
+	enabled=1;
     if (farcon.toggle[1] == 0)
     {
         control_mode = FARCON;
