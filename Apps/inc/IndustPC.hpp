@@ -7,7 +7,7 @@
 #include "msg_coder.hpp"
 #include "odo_ops.hpp"
 #include "System.hpp"
- 
+
 namespace IndustPCConst
 {
     const uint8_t MsgLength = 14;
@@ -18,6 +18,7 @@ namespace IndustPCConst
 
     const uint8_t ToPC_Head = 0xFF;
     const uint8_t FromPC_Head = 0xFA;
+		const uint8_t Take_Rod = 0xA2;
 }
 
 

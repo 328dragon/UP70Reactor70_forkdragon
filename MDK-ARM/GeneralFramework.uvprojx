@@ -879,6 +879,11 @@
               <FileType>8</FileType>
               <FilePath>..\Apps\src\IndustPC.cpp</FilePath>
             </File>
+            <File>
+              <FileName>Rod.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\Apps\src\Rod.cpp</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -928,6 +933,11 @@
               <FileName>farcon.cpp</FileName>
               <FileType>8</FileType>
               <FilePath>..\Mods\src\farcon.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>relay.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\Mods\src\relay.cpp</FilePath>
             </File>
           </Files>
         </Group>

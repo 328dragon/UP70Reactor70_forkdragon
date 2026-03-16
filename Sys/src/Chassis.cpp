@@ -2,7 +2,8 @@
 #include "arm_math.h"
 #include "Monitor.hpp"
 #include "IndustPC.hpp"
-
+#include "FreeRTOS.h"
+#include "task.h"
 ChassisType &test_chas = ChassisType::GetInstance();
 
 extern Farcon farcon;
@@ -24,9 +25,9 @@ void ChassisType::Start()
 void ChassisType::Update()
 {
     // 遥控器控制逻辑
-    control_mode = DEBUG_NAVIG;
+//
     farcon.toggle[1] = 1;
-	enabled=1;
+//	enabled=1;
     if (farcon.toggle[1] == 0)
     {
         control_mode = FARCON;
@@ -81,10 +82,7 @@ void ChassisType::_UpdateChasOdom()
     int32_t snap_total_angle[4];
     float snap_speed_rpm[4];
 
-    // 保存当前中断状态并关闭全局中断
-    // 注意：如果是 FreeRTOS 环境，请使用 taskENTER_CRITICAL();
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
+    taskENTER_CRITICAL(); // 挂起调度器和部分中断
 
     // 以极快的速度把此刻的 4 个电机状态全部“拍个照”存下来
     for (int i = 0; i < 4; i++)
@@ -93,9 +91,7 @@ void ChassisType::_UpdateChasOdom()
         snap_speed_rpm[i] = motors[i].measure.speed_rpm;
     }
 
-    // 立刻恢复中断，不要耽误 CAN 接收
-    // 如果是 FreeRTOS 环境，请使用 taskEXIT_CRITICAL();
-    __set_PRIMASK(primask);
+    taskEXIT_CRITICAL();  // 恢复调度器和中断
 
     // （1）获得当前角度 (全部改用 snap_total_angle 计算)
     float theta_distan = 0;
@@ -131,7 +127,7 @@ void ChassisType::_UpdateChasOdom()
     chas_odom.speed = (delta_move * 200.0f).ToVec3();
     chas_odom.speed.z = chas_speed.z;
 
-    if (control_mode == DEBUG_NAVIG)
+      if (control_mode == DEBUG_NAVIG)
     {
         chas_odom.pos = chas_pos;
     }

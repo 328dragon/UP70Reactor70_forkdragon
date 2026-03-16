@@ -4,10 +4,12 @@
 #include "Monitor.hpp"
 #include "std_cpp.h"
 #include "IndustPC.hpp"
+#include "Rod.hpp"
 ChassisType& chas = ChassisType::GetInstance();
 StateGraph grp("Test");
 StateCore& core = StateCore::GetInstance();
 IndustPC& pc = IndustPC::GetInstance();
+RodType &rod=RodType::GetInstance();
 void DegeAct(StateCore* core);
 extern Vec3 chas_pos;
 /**
@@ -31,6 +33,7 @@ void MainFrameCpp()
     
     System.RegistApp(chas);
     System.RegistApp(pc);
+		System.RegistApp(rod);
 //     grp.Degenerate(DegeAct);
 //     core.RegistGraph(grp);
 //     core.Enable(0);
