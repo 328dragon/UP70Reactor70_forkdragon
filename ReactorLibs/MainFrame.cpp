@@ -1,7 +1,7 @@
 #include "MainFrame.hpp"
 #include "Monitor.hpp"
 #include "System.hpp"
-#include "IMUOdom_Test.hpp"
+//#include "IMU_Example.hpp"
 
 StateCore &core = StateCore::GetInstance();
 Monitor &monit = Monitor::GetInstance();
@@ -15,6 +15,8 @@ void Action_of_Dege(StateCore *core);
  */
 void MainFrameCpp()
 {
+//  System.RegistApp(IMU_Example::GetInstance());
+
   // 配置状态图为简并模式
   example_graph.Degenerate(Action_of_Dege);
 
