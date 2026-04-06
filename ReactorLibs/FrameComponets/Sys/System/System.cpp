@@ -19,20 +19,10 @@ LedWs2812 sys_ledband;
 float target_speed=0;
 void SystemType::Init(bool Sc)
 {
-  // 输出系统启动信息
-  BspLog_LogInfo("\n\n");
-  BspLog_LogSpec("/----^---^-- Welcome to REACTOR SYSTEM --^---^----/");
-  BspLog_LogInfo("Waiting for system initialization...\n\n");
-    // 初始化日志系统
-//    BspLog_Init();
 
-//    // 输出系统启动信息
-//    BspLog_LogInfo("-- -- -- \n\n\n\n");
-//    BspLog_LogSpec("/----^---^-- Welcome to REACTOR SYSTEM --^---^----/");
-//    BspLog_LogInfo("Waiting for system initialization...\n\n");
 
     // 初始化DWT计时器（C板）
-    DWT_Init(CPU_HERT_C_BOARD_MHZ);
+    DWT_Init(CPU_HERT_A_BOARD_MHZ);
 
     // 初始化Monitor监视器
     Monitor::GetInstance().Init(Hardware::huart_host, nullptr, false);
@@ -46,19 +36,11 @@ void SystemType::Init(bool Sc)
     
     odometer.Init(Hardware::huart_odom, true, false, false, true);
 
-  // odometer.Init(Hardware::huart_odom, true, false, false, true);
 
   // 自动开始自检
   if (Sc)
     status = Systems::SELF_CHECK;
-//gimb_motor.Init(Hardware::hcan_main, 5, MOTOR_TYPE_GM6020);
-//    gimb_motor.ConfigPID()
-//              .AsSpeedC()                     // 设置为速度模式
-//              .Spd_Coeff(0.5f, 0.01f, 0.0f)   // 填入调试好的 PID 参数
-//              .Spd_Limit(3.0f, 10.0f)          // 限幅建议先设小点（GM6020最大3A）
-//              .Apply();                       // 应用配置
 
-//    gimb_motor.driver.Enable();
 
 
     // 自动开始自检
