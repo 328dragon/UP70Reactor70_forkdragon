@@ -14,8 +14,6 @@
 SystemType& System = SystemType::GetInstance();
 LedWs2812 sys_ledband;
 
-//Farcon farcon;
-//MotorDJI gimb_motor;
 float target_speed=0;
 void SystemType::Init(bool Sc)
 {

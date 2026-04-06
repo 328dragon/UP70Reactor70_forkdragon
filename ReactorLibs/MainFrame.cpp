@@ -1,13 +1,14 @@
 #include "MainFrame.hpp"
 #include "Monitor.hpp"
 #include "System.hpp"
-//#include "IMU_Example.hpp"
+#include "R1GetBlock.hpp"
 
 StateCore &core = StateCore::GetInstance();
 Monitor &monit = Monitor::GetInstance();
 
 StateGraph example_graph("graph_name");
 void Action_of_Dege(StateCore *core);
+
 
 /**
  * @brief 程序主入口
