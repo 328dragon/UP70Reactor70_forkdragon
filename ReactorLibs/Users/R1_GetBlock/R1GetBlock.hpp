@@ -56,8 +56,8 @@ private:
 
 public:
     // 数组顺序：rolldmmotor->0, stretchmotor->1, suckmotor->2
-    float target_state_pos[7]   = {0.0f}; // 五个电机的目标位置
-    float target_state_speed[7] = {0.0f}; // 五个电机的目标速度
+    float target_state_pos[7]   = {0.0f}; // 七个电机的目标位置
+    float target_state_speed[7] = {0.0f}; // 七个电机的目标速度
 
     // 软限位：[电机][0]=min, [1]=max
     // midswing 单位 rad，lift/slide 单位 code（total_angle）

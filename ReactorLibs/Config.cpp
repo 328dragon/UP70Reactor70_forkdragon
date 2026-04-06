@@ -37,7 +37,7 @@ void Hardware::Config_Hardwares()
 void Hardware::Config_Parameters()
 {
     /// @brief 配置主频
-    Hardware::MainFreq_MHz = 168;
+    Hardware::MainFreq_MHz = 180;
 
     /// @brief 日志输出模式
     Hardware::RTTLogAtUart = true;
