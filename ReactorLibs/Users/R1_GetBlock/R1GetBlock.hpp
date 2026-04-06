@@ -28,9 +28,13 @@ class GetBlock : public Application
     APPLICATION_OVERRIDE
 
 public:
-    MotorDM  rolldmmotor; // 舌头电机（达妙）
-    MotorDJI liftmotor;     // 抬升电机（大疆 M2006，CAN2 ID:1）
-    MotorDJI slidemotor;    // 滑台电机（大疆 M2006，CAN2 ID:2）
+    MotorDM  rolldmmotor; // 翻滚电机（达妙）
+    
+    MotorDJI suckmotor[2];    // 摩擦带吸吮电机（大疆 M2006，CAN2 ID:左1，右2）（顺时针）
+    MotorDJI stretchmotor[2];     // 伸缩电机（大疆 M2006，CAN2 ID:左4，右3）
+    MotorDJI liftmotor[2];// 抬升电机（大疆 M3508，CAN1 ID:左5，右6）
+
+
     BSP::GPIO::Inst vacuum_pump_pin;
     BSP::GPIO::Inst release_air_pin;
 
@@ -42,8 +46,6 @@ private:
         STATE_IDLE = 0,
         STATE_INIT,
         STATE_LIFTED,
-        STATE_GETTINGROD,  // 取杆中，舌头折叠
-        STATE_HOLDROD,     // 取杆完成，舌头展开
         STATE_GET200BLOCK,
         STATE_GET400BLOCK,
         STATE_GET600BLOCK,
@@ -53,17 +55,21 @@ private:
     BlockState appstate = STATE_IDLE;
 
 public:
-    // 数组顺序：rolldmmotor->0, liftmotor->1, slidemotor->2
-    float target_state_pos[3]   = {0.0f}; // 三个电机的目标位置
-    float target_state_speed[3] = {0.0f}; // 三个电机的目标速度
+    // 数组顺序：rolldmmotor->0, stretchmotor->1, suckmotor->2
+    float target_state_pos[7]   = {0.0f}; // 五个电机的目标位置
+    float target_state_speed[7] = {0.0f}; // 五个电机的目标速度
 
     // 软限位：[电机][0]=min, [1]=max
     // midswing 单位 rad，lift/slide 单位 code（total_angle）
-    float pos_limit[3][2] = {{0.0f, 0.0f},
+    float pos_limit[7][2] = {{0.0f, 0.0f},
                               {0.0f, 0.0f},
-                              {0.0f, 0.0f}};
+                              {0.0f, 0.0f},
+                              {0.0f, 0.0f},
+                              {0.0f, 0.0f},
+                              {0.0f, 0.0f}
+                              ,{0.0f, 0.0f}};
 
-    // 取 200/400/600 块时抬升电机对应的 total_angle 目标值
+    // 取 200/400/600 块时抬升电机3508对应的 total_angle 目标值
     float blockheight_2_liftmotortargetpos[3] = {-150000.0f, -750000.0f, -1400000.0f};
 
     // 遥控器按键边沿检测
@@ -79,19 +85,24 @@ public:
 
     /**
      * @brief 设置三个电机的目标状态并立即下发
-     * @param midswing_pos   舌头目标位置（rad）
+     * @param strech_pos   伸出电机目标位置（code，total_angle 语义）
+     * @param suck_pos      吸吮电机目标位置（code，total_angle 语义）
      * @param lift_pos       抬升目标位置（code，total_angle 语义）
-     * @param slide_pos      滑台目标位置（code，total_angle 语义）
-     * @param midswing_speed 舌头运动速度（rad/s，达妙 v_des）
-     * @param lift_speed     抬升速度（大疆位置串级模式，此参数保留但当前忽略）
-     * @param slide_speed    滑台速度（同上）
-     */
-    void SetTargetState(float midswing_pos   = 0.0f, float lift_pos   = 0.0f, float slide_pos   = 0.0f,
-                        float midswing_speed = 2.0f, float lift_speed = 2.0f, float slide_speed = 2.0f);
 
-    void SetPosLimit(float midswing_min, float midswing_max,
-                     float lift_min,     float lift_max,
-                     float slide_min,    float slide_max);
+     * @param strech_speed 伸出电机速度（大疆位置串级模式，此参数保留但当前忽略）
+     * @param suck_speed    吸吮电机速度（同上）
+     * @param lift_speed     抬升速度（同上）
+     */
+    void SetTargetState(float stretch_pos_L = 0.0f, float stretch_pos_R = 0.0f,
+                        float suck_pos_L = 0.0f,    float suck_pos_R = 0.0f,
+                        float lift_pos_L = 0.0f,    float lift_pos_R = 0.0f,
+                        float stretch_speed_L = 2.0f, float stretch_speed_R = 2.0f,
+                        float suck_speed_L = 2.0f,    float suck_speed_R = 2.0f,
+                        float lift_speed_L = 2.0f,    float lift_speed_R = 2.0f);
+
+    void SetPosLimit(float stretch_min_L, float stretch_max_L, float stretch_min_R, float stretch_max_R,
+                     float suck_min_L, float suck_max_L, float suck_min_R, float suck_max_R,
+                     float lift_min_L, float lift_max_L, float lift_min_R, float lift_max_R);
 
     void Get_200Block();
     void Get_400Block();
