@@ -9,6 +9,18 @@ extern SystemType &System;
 
 // 遥控器按键 8 存储高度的计数器（1→存200块高度，2→400，3→600）
 static uint8_t entertime = 0;
+int suck_flag = 0;
+float lift_target_pos = 0.0f;
+
+float lift_pos_kp = 2.0f;
+float lift_pos_ki = 0.0f;
+float lift_pos_kd = 0.0f;
+
+float lift_speed_kp = 0.001f;
+float lift_speed_ki = 0.0f;
+float lift_speed_kd = 0.0f;
+
+
 
 void GetBlock::Start()
 {
@@ -21,25 +33,25 @@ void GetBlock::Start()
   rolldmmotor.SetAutoEnable(1, 500);
   rolldmmotor.Enable();
 
-  //   // ---- 大疆抬升电机左（M3508，减速比19，CAN1 ID:5，位置串级模式）----
-  //   liftmotor[0].Init(Hardware::hcan_main, 5, DJI_C620);
-  //   liftmotor[0].ConfigPID().AsPosC().Pos_Coeff(4.0f, 0.0f, 0.0f) // 位置环 kp/ki/kd（待整定）
-  //       .Pos_Limit(300.0f, 200.0f)                                // 位置环积分限幅、输出速度限幅（rad/s）
-  //       .Spd_Coeff(0.15f, 0.005f, 0.0f)                           // 速度环 kp/ki/kd（待整定）
-  //       .Spd_Limit(2.0f, 10.0f)                                   // 速度环积分限幅、电流输出限幅（code）
-  //       .CurLimit(10)
-  //       .Apply();
-  //   liftmotor[0].driver.Enable();
+    // ---- 大疆抬升电机左（M3508，减速比19，CAN1 ID:5，位置串级模式）----
+    liftmotor[0].Init(Hardware::hcan_main, 5, DJI_C620);
+    liftmotor[0].ConfigPID().AsPosC().Pos_Coeff(2.0f, 0.0f, 0.5f) // 位置环 kp/ki/kd（待整定）
+      .Pos_Limit(300.0f, 2000.0f)                                   // 位置环积分限幅、输出速度限幅（rad/s）
+      .Spd_Coeff(0.008f, 0, 0.0f)                             // 速度环 kp/ki/kd（待整定）
+      .Spd_Limit(2.0f, 8.0f)                                       // 速度环积分限幅、电流输出限幅（code）
+      .CurLimit(10)
+      .Apply();
+    liftmotor[0].driver.Enable();
 
-  //   // ---- 大疆抬升电机右（M3508，减速比19，CAN1 ID:6，位置串级模式）----
-  //   liftmotor[1].Init(Hardware::hcan_main, 6, DJI_C620);
-  //   liftmotor[1].ConfigPID().AsPosC().Pos_Coeff(4.0f, 0.0f, 0.0f) // 位置环 kp/ki/kd（待整定）
-  //       .Pos_Limit(300.0f, 200.0f)                                // 位置环积分限幅、输出速度限幅（rad/s）
-  //       .Spd_Coeff(0.15f, 0.005f, 0.0f)                           // 速度环 kp/ki/kd（待整定）
-  //       .Spd_Limit(2.0f, 10.0f)                                   // 速度环积分限幅、电流输出限幅（code）
-  //       .CurLimit(10)
-  //       .Apply();
-  //   liftmotor[1].driver.Enable();
+    // ---- 大疆抬升电机右（M3508，减速比19，CAN1 ID:6，位置串级模式）----
+    liftmotor[1].Init(Hardware::hcan_main, 6, DJI_C620);
+    liftmotor[1].ConfigPID().AsPosC().Pos_Coeff(2.0f, 0.0f, 0.5f) // 位置环 kp/ki/kd（待整定）
+      .Pos_Limit(300.0f, 2000.0f)                                   // 位置环积分限幅、输出速度限幅（rad/s）
+      .Spd_Coeff(0.016f, 0, 0.0f)                             // 速度环 kp/ki/kd（待整定）
+      .Spd_Limit(2.0f, 8.0f)                                       // 速度环积分限幅、电流输出限幅（code）
+      .CurLimit(10)
+      .Apply();
+    liftmotor[1].driver.Enable();
 
   // ---- 大疆吸吮电机左（M2006，减速比36，CAN2 ID:1，位置串级模式）----
   suckmotor[0].Init(Hardware::hcan_sub, 1, DJI_C610);
@@ -49,7 +61,7 @@ void GetBlock::Start()
       .Spd_Limit(2.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
-  suckmotor[0].driver.Enable();//左边target_pos是1000000左右合适，且－的往外推，正的往里吸
+  suckmotor[0].driver.Enable(); // 左边target_pos是1000000左右合适，且－的往外推，正的往里吸
 
   // ---- 大疆吸吮电机右（M2006，减速比36，CAN2 ID:2，位置串级模式）----
   suckmotor[1].Init(Hardware::hcan_sub, 2, DJI_C610);
@@ -59,136 +71,182 @@ void GetBlock::Start()
       .Spd_Limit(2.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
-  suckmotor[1].driver.Enable();//右边target_pos是1000000左右合适，且－的往外推，正的往里吸
+  suckmotor[1].driver.Enable(); // 右边target_pos是1000000左右合适，且－的往外推，正的往里吸
 
   //   // ---- 大疆伸缩电机左（M2006，减速比36，CAN2 ID:4，位置串级模式）----
   stretchmotor[0].Init(Hardware::hcan_sub, 4, DJI_C610);
   stretchmotor[0].ConfigPID().AsPosC().Pos_Coeff(15.0f, 0.0f, 1.0f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(300.0f, 4000.0f)                                   // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.01f, 0.00005f, 0.0f)                            // 速度环 kp/ki/kd（待整定）
+      .Spd_Coeff(0.01f, 0.00005f, 0.0f)                             // 速度环 kp/ki/kd（待整定）
       .Spd_Limit(2.0f, 10.0f)                                       // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
-  stretchmotor[0].driver.Enable();//左边target_pos是1000000左右合适，且+的往前
+  stretchmotor[0].driver.Enable(); // 左边target_pos是1000000左右合适，且+的往前
 
   // ---- 大疆伸缩电机右（M2006，减速比36，CAN2 ID:3，位置串级模式）----
   stretchmotor[1].Init(Hardware::hcan_sub, 3, DJI_C610);
   stretchmotor[1].ConfigPID().AsPosC().Pos_Coeff(15.0f, 0.0f, 1.0f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(300.0f, 4000.0f)                                   // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.01f, 0.00005f, 0.0f)                            // 速度环 kp/ki/kd（待整定）
+      .Spd_Coeff(0.01f, 0.00005f, 0.0f)                             // 速度环 kp/ki/kd（待整定）
       .Spd_Limit(2.0f, 10.0f)                                       // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
-  stretchmotor[1].driver.Enable();//右边target_pos是1000000左右合适，且-的往前
+  stretchmotor[1].driver.Enable(); // 右边target_pos是1000000左右合适，且-的往前
 
   appstate = STATE_INIT;
 }
 
 // ======================== Update ========================
 
+// void GetBlock::Update()
+// {
+//   //   GetTargetBlockInfo();
+
+//   //   // ---- 状态机 ----
+//   //   if (appstate == STATE_INIT)
+//   //   {
+//   //     rolldmmotor.SetPosVel(0.0f, 2.0f);
+//   //     // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
+//   //     SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+//   //     release_air_pin.Write(true);
+//   //   }
+
+//   //   if (appstate == STATE_LIFTED)
+//   //   {
+//   //     // 修复：必须明确指定读取数组中的某一个电机（比如左伸缩电机[0]）的反馈角度
+//   //     if (stretchmotor[0].driver.measure.total_angle < -700000.0f)
+//   //     {
+//   //       rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
+//   //       // 原逻辑：lift(抬升)运动到 -750000，伸缩回零。吸吮保持原样([5], [6])
+//   //       SetTargetState(0.0f, 0.0f,
+//   //                      target_state_pos[5], target_state_pos[6],
+//   //                      -750000.0f, -750000.0f);
+//   //     }
+//   //     appstate = STATE_IDLE;
+//   //   }
+
+//   //   if (appstate == STATE_IDLE)
+//   //   {
+//   //     release_air_pin.Write(true);
+//   //   }
+
+//   //   // ---- 遥控器按键边沿检测 ----
+//   //   for (int i = 0; i < 8; i++)
+//   //   {
+//   //     uint8_t cur = farcon.button_first_half[i];
+//   //     btn_enter[i] = (cur == 1 && last_btn_state[i] == 0); // 上升沿
+//   //     last_btn_state[i] = cur;
+//   //   }
+
+//   //   // ---- 按键动作 ----
+
+//   //   // 按键 1/2/3：一级动作，直接调用已经封装好的取块函数，代码更简洁
+//   //   if (farcon.button_first_half[0] == 1)
+//   //   {
+//   //     Get_200Block();
+//   //   }
+//   //   if (farcon.button_first_half[1] == 1)
+//   //   {
+//   //     Get_400Block();
+//   //   }
+//   //   if (farcon.button_first_half[2] == 1)
+//   //   {
+//   //     Get_600Block();
+//   //   }
+
+//   //   // 按键 4：二级动作，滑台(伸缩)全伸出吸附
+//   //   if (farcon.button_first_half[3] == 1)
+//   //   {
+//   //     rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
+//   //     // 伸缩(Stretch)伸出到 430000，吸吮([5][6])和抬升([1][2])保持当前状态
+//   //     SetTargetState(430000.0f, 430000.0f,
+//   //                    target_state_pos[5], target_state_pos[6],
+//   //                    target_state_pos[1], target_state_pos[2]);
+//   //     vacuum_pump_pin.Write(true);
+//   //   }
+
+//   //   // 按键 5：放块，调用封装好的释放函数
+//   //   if (farcon.button_first_half[4] == 1)
+//   //   {
+//   //     ReleaseBlock();
+//   //     appstate = STATE_IDLE; // 释放后重置回空闲状态
+//   //   }
+
+//   //   // 按键 6/7：手动微调抬升高度（单次触发，每次约 5cm）
+//   //   if (farcon.button_first_half[5] == 1 && btn_enter[5])
+//   //   {
+//   //     // 微调时，必须同时更新左右抬升电机的值
+//   //     target_state_pos[1] -= 166666.0f; // 左抬升上升
+//   //     target_state_pos[2] -= 166666.0f; // 右抬升上升
+
+//   //     SetTargetState(target_state_pos[3], target_state_pos[4],
+//   //                    target_state_pos[5], target_state_pos[6],
+//   //                    target_state_pos[1], target_state_pos[2]);
+//   //   }
+//   //   if (farcon.button_first_half[6] == 1 && btn_enter[6])
+//   //   {
+//   //     target_state_pos[1] += 166666.0f; // 左抬升下降
+//   //     target_state_pos[2] += 166666.0f; // 右抬升下降
+
+//   //     SetTargetState(target_state_pos[3], target_state_pos[4],
+//   //                    target_state_pos[5], target_state_pos[6],
+//   //                    target_state_pos[1], target_state_pos[2]);
+//   //   }
+
+//   //   // 按键 8：依次存储 200/400/600 块对应的当前抬升位置
+//   //   if (farcon.button_first_half[7] == 1 && btn_enter[7])
+//   //   {
+//   //     // 取左侧抬升电机([1])的当前目标高度存入字典即可
+//   //     blockheight_2_liftmotortargetpos[entertime] = target_state_pos[1];
+//   //     entertime = (entertime + 1) % 3;
+//   //     // TODO: 将 entertime 回传到遥控器屏幕
+//   //   }
+// }
+
 void GetBlock::Update()
 {
-  //   GetTargetBlockInfo();
+  GetTargetBlockInfo();
+  if (System.out_from_debugmode)
+  {
+    for (int i = 0; i < 4; i++)
+    {
+      suckmotor[0].Neutral(); // 摩擦带吸吮电机（大疆 M2006，CAN2 ID:左1，右2）（顺时针）
+      suckmotor[0].driver.Disable();
+      suckmotor[1].Neutral();
+      suckmotor[1].driver.Disable();
+      stretchmotor[0].Neutral(); // 伸缩电机（大疆 M2006，CAN2 ID:左4，右3）
+      stretchmotor[0].driver.Disable();
+      stretchmotor[1].Neutral();
+      stretchmotor[1].driver.Disable();
+      liftmotor[0].Neutral(); // 抬升电机（大疆 M3508，CAN1 ID:左5，右6）
+      liftmotor[0].driver.Disable();
+      liftmotor[1].Neutral();
+      liftmotor[1].driver.Disable();
 
-  //   // ---- 状态机 ----
-  //   if (appstate == STATE_INIT)
-  //   {
-  //     rolldmmotor.SetPosVel(0.0f, 2.0f);
-  //     // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
-  //     SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-  //     release_air_pin.Write(true);
-  //   }
+      //            motors[i].Neutral();
+      //            motors[i].driver.Disable();
+    }
+  }
 
-  //   if (appstate == STATE_LIFTED)
-  //   {
-  //     // 修复：必须明确指定读取数组中的某一个电机（比如左伸缩电机[0]）的反馈角度
-  //     if (stretchmotor[0].driver.measure.total_angle < -700000.0f)
-  //     {
-  //       rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
-  //       // 原逻辑：lift(抬升)运动到 -750000，伸缩回零。吸吮保持原样([5], [6])
-  //       SetTargetState(0.0f, 0.0f,
-  //                      target_state_pos[5], target_state_pos[6],
-  //                      -750000.0f, -750000.0f);
-  //     }
-  //     appstate = STATE_IDLE;
-  //   }
+//liftmotor[0].speed_pid.SetParam(lift_speed_kp, lift_speed_ki, lift_speed_kd) ; 
+//liftmotor[1].speed_pid.SetParam(lift_speed_kp, lift_speed_ki, lift_speed_kd) ;
+//liftmotor[0].position_pid.SetParam(lift_pos_kp, lift_pos_ki, lift_pos_kd) ; 
+//liftmotor[1].position_pid.SetParam(lift_pos_kp, lift_pos_ki, lift_pos_kd) ;
 
-  //   if (appstate == STATE_IDLE)
-  //   {
-  //     release_air_pin.Write(true);
-  //   }
 
-  //   // ---- 遥控器按键边沿检测 ----
-  //   for (int i = 0; i < 8; i++)
-  //   {
-  //     uint8_t cur = farcon.button_first_half[i];
-  //     btn_enter[i] = (cur == 1 && last_btn_state[i] == 0); // 上升沿
-  //     last_btn_state[i] = cur;
-  //   }
-
-  //   // ---- 按键动作 ----
-
-  //   // 按键 1/2/3：一级动作，直接调用已经封装好的取块函数，代码更简洁
-  //   if (farcon.button_first_half[0] == 1)
-  //   {
-  //     Get_200Block();
-  //   }
-  //   if (farcon.button_first_half[1] == 1)
-  //   {
-  //     Get_400Block();
-  //   }
-  //   if (farcon.button_first_half[2] == 1)
-  //   {
-  //     Get_600Block();
-  //   }
-
-  //   // 按键 4：二级动作，滑台(伸缩)全伸出吸附
-  //   if (farcon.button_first_half[3] == 1)
-  //   {
-  //     rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
-  //     // 伸缩(Stretch)伸出到 430000，吸吮([5][6])和抬升([1][2])保持当前状态
-  //     SetTargetState(430000.0f, 430000.0f,
-  //                    target_state_pos[5], target_state_pos[6],
-  //                    target_state_pos[1], target_state_pos[2]);
-  //     vacuum_pump_pin.Write(true);
-  //   }
-
-  //   // 按键 5：放块，调用封装好的释放函数
-  //   if (farcon.button_first_half[4] == 1)
-  //   {
-  //     ReleaseBlock();
-  //     appstate = STATE_IDLE; // 释放后重置回空闲状态
-  //   }
-
-  //   // 按键 6/7：手动微调抬升高度（单次触发，每次约 5cm）
-  //   if (farcon.button_first_half[5] == 1 && btn_enter[5])
-  //   {
-  //     // 微调时，必须同时更新左右抬升电机的值
-  //     target_state_pos[1] -= 166666.0f; // 左抬升上升
-  //     target_state_pos[2] -= 166666.0f; // 右抬升上升
-
-  //     SetTargetState(target_state_pos[3], target_state_pos[4],
-  //                    target_state_pos[5], target_state_pos[6],
-  //                    target_state_pos[1], target_state_pos[2]);
-  //   }
-  //   if (farcon.button_first_half[6] == 1 && btn_enter[6])
-  //   {
-  //     target_state_pos[1] += 166666.0f; // 左抬升下降
-  //     target_state_pos[2] += 166666.0f; // 右抬升下降
-
-  //     SetTargetState(target_state_pos[3], target_state_pos[4],
-  //                    target_state_pos[5], target_state_pos[6],
-  //                    target_state_pos[1], target_state_pos[2]);
-  //   }
-
-  //   // 按键 8：依次存储 200/400/600 块对应的当前抬升位置
-  //   if (farcon.button_first_half[7] == 1 && btn_enter[7])
-  //   {
-  //     // 取左侧抬升电机([1])的当前目标高度存入字典即可
-  //     blockheight_2_liftmotortargetpos[entertime] = target_state_pos[1];
-  //     entertime = (entertime + 1) % 3;
-  //     // TODO: 将 entertime 回传到遥控器屏幕
-  //   }
+  liftmotor[0].targ_pos = lift_target_pos;
+  liftmotor[1].targ_pos = -lift_target_pos;
+  // ---- 状态机 ----
+  if (appstate == STATE_INIT)
+  {
+    //   rolldmmotor.SetPosVel(0.0f, 2.0f);
+    // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
+    if (suck_flag == 1)
+      SetTargetState(1000000.0f, -1000000.0f, -1000000.0f, -1000000.0f, 0.0f, 0.0f);
+    else if (suck_flag == -1)
+      SetTargetState(-1000000.0f, 1000000.0f, 1000000.0f, 1000000.0f, 0.0f, 0.0f);
+    //   release_air_pin.Write(true);
+  }
 }
 
 // ======================== Enable / Stop ========================
