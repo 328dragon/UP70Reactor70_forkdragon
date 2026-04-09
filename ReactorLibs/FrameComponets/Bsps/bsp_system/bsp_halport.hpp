@@ -18,6 +18,7 @@
     #include "usart.h"
     #include "dma.h"
     #include "spi.h"
+    #include "tim.h"
 
 /* ==================================================================
  * 场景 2：在 Pure-Fram 分支（实验室），无硬件环境
@@ -81,6 +82,7 @@ inline BSP::SPI::SpiID ToID(SPI_HandleTypeDef* handle)
 }
 
 
+
 namespace Hardware
 {
     void Config_Hardwares();
@@ -96,4 +98,6 @@ namespace Hardware
     /***---------------     框架定时器    ---------------***/
     /// @brief WS2812灯带定时器
     extern TIM_HandleTypeDef* htim_led;
+    /// @brief 抬升舵机定时器
+    extern TIM_HandleTypeDef* htim_liftservo;
 };

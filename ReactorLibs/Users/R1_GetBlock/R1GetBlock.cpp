@@ -55,7 +55,7 @@ void GetBlock::Start()
   suckmotor[0].Init(Hardware::hcan_sub, 1, DJI_C610);
   suckmotor[0].ConfigPID().AsPosC().Pos_Coeff(20.0f, 0.0f, 2.5f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(300.0f, 5000.0f)                                // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.001f, 0.00005f, 0.0f)                         // 速度环 kp/ki/kd（待整定）
+      .Spd_Coeff(0.003f, 0.00005f, 0.0f)                         // 速度环 kp/ki/kd（待整定）
       .Spd_Limit(2.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
@@ -65,7 +65,7 @@ void GetBlock::Start()
   suckmotor[1].Init(Hardware::hcan_sub, 2, DJI_C610);
   suckmotor[1].ConfigPID().AsPosC().Pos_Coeff(20.0f, 0.0f, 2.5f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(300.0f, 5000.0f)                                // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.001f, 0.00005f, 0.0f)                         // 速度环 kp/ki/kd（待整定）
+      .Spd_Coeff(0.003f, 0.00005f, 0.0f)                         // 速度环 kp/ki/kd（待整定）
       .Spd_Limit(2.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
@@ -92,6 +92,8 @@ void GetBlock::Start()
   stretchmotor[1].driver.Enable(); // 右边target_pos是1000000左右合适，且-的往前
 
 	SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  
+//  liftservo[0].Init(&htim5, TIM_CHANNEL_2);
   appstate = STATE_INIT;
   Enable();
 }
@@ -230,11 +232,11 @@ void GetBlock::Update()
 		}
     if (suck_flag==3)
     {
-     SetTargetState(3800000.0f, 3800000.0f, 6000000.0f, 6000000.0f, lift_target_pos, lift_target_pos); 
+     SetTargetState(3800000.0f, 3800000.0f, -10000000.0f, 10000000.0f, lift_target_pos, lift_target_pos); 
     }
       if (suck_flag==4)
     {
-     SetTargetState(0.0f, 0.0f, 6000000.0f,6000000.0f, lift_target_pos, lift_target_pos); 
+     SetTargetState(0.0f, 0.0f, -10000000.0f,10000000.0f, lift_target_pos, lift_target_pos); 
     }
     if(suck_flag==5)
     {
@@ -270,11 +272,11 @@ void GetBlock::Update()
       lift_target_pos=400000.0f;
     }else  if(farcon.button_second_half[1] == 1)
     {
-      lift_target_pos=600000.0f;
+      lift_target_pos=3800000.0f;
     }
     else  if(farcon.button_second_half[2] == 1)
     {
-      lift_target_pos=800000.0f;
+      lift_target_pos=580000.0f;
     }
 
   }

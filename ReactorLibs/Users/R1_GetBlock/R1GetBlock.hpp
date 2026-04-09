@@ -3,7 +3,7 @@
 #include "motor_dm.hpp"
 #include "motor_dji.hpp"
 #include "bsp_gpio.hpp"
-
+#include "servo.hpp"
 // 块中心在场地坐标系的位置，xy 单位为米，height 单位为毫米
 struct BlockInfo
 {
@@ -34,6 +34,7 @@ public:
     MotorDJI stretchmotor[2];     // 伸缩电机（大疆 M2006，CAN2 ID:左4，右3）
     MotorDJI liftmotor[2];// 抬升电机（大疆 M3508，CAN1 ID:左5，右6）
 
+Servo liftservo[2]; // 抬升舵机（大疆 M3508，CAN1 ID:左5，右6）预留
 
     // BSP::GPIO::Inst vacuum_pump_pin;
     // BSP::GPIO::Inst release_air_pin;

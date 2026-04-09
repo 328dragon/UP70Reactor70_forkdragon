@@ -24,7 +24,7 @@ void Hardware::Config_Hardwares()
 
     /**-----    配置定时器    -----**/
     Hardware::htim_led = nullptr;
-
+    // Hardware::htim_liftservo = &htim5;
     /**-----    配置 GPIO   -----**/
 
     Hardware::Config_Parameters();
