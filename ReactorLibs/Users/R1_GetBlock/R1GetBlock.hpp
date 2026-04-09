@@ -35,8 +35,9 @@ public:
     MotorDJI liftmotor[2];// 抬升电机（大疆 M3508，CAN1 ID:左5，右6）
 
 
-    BSP::GPIO::Inst vacuum_pump_pin;
-    BSP::GPIO::Inst release_air_pin;
+    // BSP::GPIO::Inst vacuum_pump_pin;
+    // BSP::GPIO::Inst release_air_pin;
+ BSP::GPIO::Inst air_pump_pin;
 
 private:
     bool enabled = false;
@@ -60,7 +61,7 @@ public:
     float target_state_speed[7] = {0.0f}; // 七个电机的目标速度
 
     // 软限位：[电机][0]=min, [1]=max
-    // midswing 单位 rad，lift/slide 单位 code（total_angle）
+    // rolldmmotor 单位 rad，suckmotor/stretchmotor/liftmotor 单位 code（total_angle）
     float pos_limit[7][2] = {{0.0f, 0.0f},
                               {0.0f, 0.0f},
                               {0.0f, 0.0f},

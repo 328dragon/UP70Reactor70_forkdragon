@@ -20,38 +20,36 @@ float lift_speed_kp = 0.001f;
 float lift_speed_ki = 0.0f;
 float lift_speed_kd = 0.0f;
 
-
-
 void GetBlock::Start()
 {
   // GPIO 注册，考虑是否放到Config.cpp里统一注册，这样才不会影响框架的功能（在改变硬件时只需要改变config文件），在这里直接用注册后的实例的名字
-  // vacuum_pump_pin = BSP::GPIO::Inst({'E', 4});
+  //  vacuum_pump_pin = BSP::GPIO::Inst({'E', 4});
   // release_air_pin = BSP::GPIO::Inst({'H', 4});
-
+  air_pump_pin = BSP::GPIO::Inst({'D', 12});
   // ---- 达妙翻滚电机 ----
-  rolldmmotor.Init(Hardware::hcan_sub, 0x11, 0x10, DM_MODE_POSANDVEL);
-  rolldmmotor.SetAutoEnable(1, 500);
-  rolldmmotor.Enable();
+  // rolldmmotor.Init(Hardware::hcan_sub, 0x11, 0x10, DM_MODE_POSANDVEL);
+  // rolldmmotor.SetAutoEnable(1, 500);
+  // rolldmmotor.Enable();
 
-    // ---- 大疆抬升电机左（M3508，减速比19，CAN1 ID:5，位置串级模式）----
-    liftmotor[0].Init(Hardware::hcan_main, 5, DJI_C620);
-    liftmotor[0].ConfigPID().AsPosC().Pos_Coeff(2.0f, 0.0f, 0.5f) // 位置环 kp/ki/kd（待整定）
-      .Pos_Limit(300.0f, 2000.0f)                                   // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.008f, 0, 0.0f)                             // 速度环 kp/ki/kd（待整定）
-      .Spd_Limit(2.0f, 8.0f)                                       // 速度环积分限幅、电流输出限幅（code）
+  // ---- 大疆抬升电机左（M3508，减速比19，CAN1 ID:5，位置串级模式）----
+  liftmotor[0].Init(Hardware::hcan_main, 5, DJI_C620);
+  liftmotor[0].ConfigPID().AsPosC().Pos_Coeff(1.5f, 0.0f, 0.2f) // 位置环 kp/ki/kd（待整定）
+      .Pos_Limit(500.0f, 4000.0f)                               // 位置环积分限幅、输出速度限幅（rad/s）
+      .Spd_Coeff(0.05f, 0.003, 0.0f)                               // 速度环 kp/ki/kd（待整定）
+      .Spd_Limit(3.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
-    liftmotor[0].driver.Enable();
+  liftmotor[0].driver.Enable(); // 设负的向上，正的向下
 
-    // ---- 大疆抬升电机右（M3508，减速比19，CAN1 ID:6，位置串级模式）----
-    liftmotor[1].Init(Hardware::hcan_main, 6, DJI_C620);
-    liftmotor[1].ConfigPID().AsPosC().Pos_Coeff(2.0f, 0.0f, 0.5f) // 位置环 kp/ki/kd（待整定）
-      .Pos_Limit(300.0f, 2000.0f)                                   // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.016f, 0, 0.0f)                             // 速度环 kp/ki/kd（待整定）
-      .Spd_Limit(2.0f, 8.0f)                                       // 速度环积分限幅、电流输出限幅（code）
+  // ---- 大疆抬升电机右（M3508，减速比19，CAN1 ID:6，位置串级模式）----
+  liftmotor[1].Init(Hardware::hcan_main, 6, DJI_C620);
+  liftmotor[1].ConfigPID().AsPosC().Pos_Coeff(1.8f, 0.0f, 0.2f) // 位置环 kp/ki/kd（待整定）
+      .Pos_Limit(500.0f, 4000.0f)                               // 位置环积分限幅、输出速度限幅（rad/s）
+      .Spd_Coeff(0.07f, 0.004, 0.0f)                               // 速度环 kp/ki/kd（待整定）
+      .Spd_Limit(3.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
-    liftmotor[1].driver.Enable();
+  liftmotor[1].driver.Enable(); // 设正的向上，负的向下
 
   // ---- 大疆吸吮电机左（M2006，减速比36，CAN2 ID:1，位置串级模式）----
   suckmotor[0].Init(Hardware::hcan_sub, 1, DJI_C610);
@@ -93,7 +91,9 @@ void GetBlock::Start()
       .Apply();
   stretchmotor[1].driver.Enable(); // 右边target_pos是1000000左右合适，且-的往前
 
+	SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
   appstate = STATE_INIT;
+  Enable();
 }
 
 // ======================== Update ========================
@@ -102,98 +102,98 @@ void GetBlock::Start()
 // {
 //   //   GetTargetBlockInfo();
 
-//   //   // ---- 状态机 ----
-//   //   if (appstate == STATE_INIT)
-//   //   {
-//   //     rolldmmotor.SetPosVel(0.0f, 2.0f);
-//   //     // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
-//   //     SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-//   //     release_air_pin.Write(true);
-//   //   }
+//     // ---- 状态机 ----
+//     if (appstate == STATE_INIT)
+//     {
+//       rolldmmotor.SetPosVel(0.0f, 2.0f);
+//       // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
+//       SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+//       release_air_pin.Write(true);
+//     }
 
-//   //   if (appstate == STATE_LIFTED)
-//   //   {
-//   //     // 修复：必须明确指定读取数组中的某一个电机（比如左伸缩电机[0]）的反馈角度
-//   //     if (stretchmotor[0].driver.measure.total_angle < -700000.0f)
-//   //     {
-//   //       rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
-//   //       // 原逻辑：lift(抬升)运动到 -750000，伸缩回零。吸吮保持原样([5], [6])
-//   //       SetTargetState(0.0f, 0.0f,
-//   //                      target_state_pos[5], target_state_pos[6],
-//   //                      -750000.0f, -750000.0f);
-//   //     }
-//   //     appstate = STATE_IDLE;
-//   //   }
+//     if (appstate == STATE_LIFTED)
+//     {
+//       // 修复：必须明确指定读取数组中的某一个电机（比如左伸缩电机[0]）的反馈角度
+//       if (stretchmotor[0].driver.measure.total_angle < -700000.0f)
+//       {
+//         rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
+//         // 原逻辑：lift(抬升)运动到 -750000，伸缩回零。吸吮保持原样([5], [6])
+//         SetTargetState(0.0f, 0.0f,
+//                        target_state_pos[5], target_state_pos[6],
+//                        -750000.0f, -750000.0f);
+//       }
+//       appstate = STATE_IDLE;
+//     }
 
-//   //   if (appstate == STATE_IDLE)
-//   //   {
-//   //     release_air_pin.Write(true);
-//   //   }
+//     if (appstate == STATE_IDLE)
+//     {
+//       release_air_pin.Write(true);
+//     }
 
-//   //   // ---- 遥控器按键边沿检测 ----
-//   //   for (int i = 0; i < 8; i++)
-//   //   {
-//   //     uint8_t cur = farcon.button_first_half[i];
-//   //     btn_enter[i] = (cur == 1 && last_btn_state[i] == 0); // 上升沿
-//   //     last_btn_state[i] = cur;
-//   //   }
+//     // ---- 遥控器按键边沿检测 ----
+//     for (int i = 0; i < 8; i++)
+//     {
+//       uint8_t cur = farcon.button_first_half[i];
+//       btn_enter[i] = (cur == 1 && last_btn_state[i] == 0); // 上升沿
+//       last_btn_state[i] = cur;
+//     }
 
-//   //   // ---- 按键动作 ----
+//     // ---- 按键动作 ----
 
-//   //   // 按键 1/2/3：一级动作，直接调用已经封装好的取块函数，代码更简洁
-//   //   if (farcon.button_first_half[0] == 1)
-//   //   {
-//   //     Get_200Block();
-//   //   }
-//   //   if (farcon.button_first_half[1] == 1)
-//   //   {
-//   //     Get_400Block();
-//   //   }
-//   //   if (farcon.button_first_half[2] == 1)
-//   //   {
-//   //     Get_600Block();
-//   //   }
+//     // 按键 1/2/3：一级动作，直接调用已经封装好的取块函数，代码更简洁
+//     if (farcon.button_first_half[0] == 1)
+//     {
+//       Get_200Block();
+//     }
+//     if (farcon.button_first_half[1] == 1)
+//     {
+//       Get_400Block();
+//     }
+//     if (farcon.button_first_half[2] == 1)
+//     {
+//       Get_600Block();
+//     }
 
-//   //   // 按键 4：二级动作，滑台(伸缩)全伸出吸附
-//   //   if (farcon.button_first_half[3] == 1)
-//   //   {
-//   //     rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
-//   //     // 伸缩(Stretch)伸出到 430000，吸吮([5][6])和抬升([1][2])保持当前状态
-//   //     SetTargetState(430000.0f, 430000.0f,
-//   //                    target_state_pos[5], target_state_pos[6],
-//   //                    target_state_pos[1], target_state_pos[2]);
-//   //     vacuum_pump_pin.Write(true);
-//   //   }
+//     // 按键 4：二级动作，滑台(伸缩)全伸出吸附
+//     if (farcon.button_first_half[3] == 1)
+//     {
+//       rolldmmotor.SetPosVel(-2.30383492f, 2.0f);
+//       // 伸缩(Stretch)伸出到 430000，吸吮([5][6])和抬升([1][2])保持当前状态
+//       SetTargetState(430000.0f, 430000.0f,
+//                      target_state_pos[5], target_state_pos[6],
+//                      target_state_pos[1], target_state_pos[2]);
+//       vacuum_pump_pin.Write(true);
+//     }
 
-//   //   // 按键 5：放块，调用封装好的释放函数
-//   //   if (farcon.button_first_half[4] == 1)
-//   //   {
-//   //     ReleaseBlock();
-//   //     appstate = STATE_IDLE; // 释放后重置回空闲状态
-//   //   }
+//     // 按键 5：放块，调用封装好的释放函数
+//     if (farcon.button_first_half[4] == 1)
+//     {
+//       ReleaseBlock();
+//       appstate = STATE_IDLE; // 释放后重置回空闲状态
+//     }
 
-//   //   // 按键 6/7：手动微调抬升高度（单次触发，每次约 5cm）
-//   //   if (farcon.button_first_half[5] == 1 && btn_enter[5])
-//   //   {
-//   //     // 微调时，必须同时更新左右抬升电机的值
-//   //     target_state_pos[1] -= 166666.0f; // 左抬升上升
-//   //     target_state_pos[2] -= 166666.0f; // 右抬升上升
+//     // 按键 6/7：手动微调抬升高度（单次触发，每次约 5cm）
+//     if (farcon.button_first_half[5] == 1 && btn_enter[5])
+//     {
+//       // 微调时，必须同时更新左右抬升电机的值
+//       target_state_pos[1] -= 166666.0f; // 左抬升上升
+//       target_state_pos[2] -= 166666.0f; // 右抬升上升
 
-//   //     SetTargetState(target_state_pos[3], target_state_pos[4],
-//   //                    target_state_pos[5], target_state_pos[6],
-//   //                    target_state_pos[1], target_state_pos[2]);
-//   //   }
-//   //   if (farcon.button_first_half[6] == 1 && btn_enter[6])
-//   //   {
-//   //     target_state_pos[1] += 166666.0f; // 左抬升下降
-//   //     target_state_pos[2] += 166666.0f; // 右抬升下降
+//       SetTargetState(target_state_pos[3], target_state_pos[4],
+//                      target_state_pos[5], target_state_pos[6],
+//                      target_state_pos[1], target_state_pos[2]);
+//     }
+//     if (farcon.button_first_half[6] == 1 && btn_enter[6])
+//     {
+//       target_state_pos[1] += 166666.0f; // 左抬升下降
+//       target_state_pos[2] += 166666.0f; // 右抬升下降
 
-//   //     SetTargetState(target_state_pos[3], target_state_pos[4],
-//   //                    target_state_pos[5], target_state_pos[6],
-//   //                    target_state_pos[1], target_state_pos[2]);
-//   //   }
+//       SetTargetState(target_state_pos[3], target_state_pos[4],
+//                      target_state_pos[5], target_state_pos[6],
+//                      target_state_pos[1], target_state_pos[2]);
+//     }
 
-//   //   // 按键 8：依次存储 200/400/600 块对应的当前抬升位置
+//     // 按键 8：依次存储 200/400/600 块对应的当前抬升位置
 //   //   if (farcon.button_first_half[7] == 1 && btn_enter[7])
 //   //   {
 //   //     // 取左侧抬升电机([1])的当前目标高度存入字典即可
@@ -208,44 +208,28 @@ void GetBlock::Update()
   GetTargetBlockInfo();
   if (System.out_from_debugmode)
   {
-    for (int i = 0; i < 4; i++)
-    {
-      suckmotor[0].Neutral(); // 摩擦带吸吮电机（大疆 M2006，CAN2 ID:左1，右2）（顺时针）
-      suckmotor[0].driver.Disable();
-      suckmotor[1].Neutral();
-      suckmotor[1].driver.Disable();
-      stretchmotor[0].Neutral(); // 伸缩电机（大疆 M2006，CAN2 ID:左4，右3）
-      stretchmotor[0].driver.Disable();
-      stretchmotor[1].Neutral();
-      stretchmotor[1].driver.Disable();
-      liftmotor[0].Neutral(); // 抬升电机（大疆 M3508，CAN1 ID:左5，右6）
-      liftmotor[0].driver.Disable();
-      liftmotor[1].Neutral();
-      liftmotor[1].driver.Disable();
-
-      //            motors[i].Neutral();
-      //            motors[i].driver.Disable();
-    }
+    Stop();
   }
-
-//liftmotor[0].speed_pid.SetParam(lift_speed_kp, lift_speed_ki, lift_speed_kd) ; 
-//liftmotor[1].speed_pid.SetParam(lift_speed_kp, lift_speed_ki, lift_speed_kd) ;
-//liftmotor[0].position_pid.SetParam(lift_pos_kp, lift_pos_ki, lift_pos_kd) ; 
-//liftmotor[1].position_pid.SetParam(lift_pos_kp, lift_pos_ki, lift_pos_kd) ;
-
-
-  liftmotor[0].targ_pos = lift_target_pos;
-  liftmotor[1].targ_pos = -lift_target_pos;
+  
+ liftmotor[0].targ_pos=-lift_target_pos;
+ liftmotor[1].targ_pos=lift_target_pos;
   // ---- 状态机 ----
   if (appstate == STATE_INIT)
   {
     //   rolldmmotor.SetPosVel(0.0f, 2.0f);
     // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
     if (suck_flag == 1)
-      SetTargetState(1000000.0f, -1000000.0f, -1000000.0f, -1000000.0f, 0.0f, 0.0f);
+		{
+		air_pump_pin.Write(1);
+		SetTargetState(1000000.0f, 1000000.0f, 1000000.0f, 1000000.0f, 400000.0f, 400000.0f);
+		}
+     
     else if (suck_flag == -1)
-      SetTargetState(-1000000.0f, 1000000.0f, 1000000.0f, 1000000.0f, 0.0f, 0.0f);
-    //   release_air_pin.Write(true);
+		{
+		air_pump_pin.Write(0);
+		SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0, 0);
+		}
+
   }
 }
 
@@ -258,14 +242,19 @@ void GetBlock::Enable()
 
 void GetBlock::Stop()
 {
-  rolldmmotor.Disable();
-  stretchmotor[0].driver.Disable();
-  stretchmotor[1].driver.Disable();
+  suckmotor[0].Neutral(); // 摩擦带吸吮电机（大疆 M2006，CAN2 ID:左1，右2）（顺时针）
   suckmotor[0].driver.Disable();
+  suckmotor[1].Neutral();
   suckmotor[1].driver.Disable();
+  stretchmotor[0].Neutral(); // 伸缩电机（大疆 M2006，CAN2 ID:左4，右3）
+  stretchmotor[0].driver.Disable();
+  stretchmotor[1].Neutral();
+  stretchmotor[1].driver.Disable();
+  liftmotor[0].Neutral(); // 抬升电机（大疆 M3508，CAN1 ID:左5，右6）
   liftmotor[0].driver.Disable();
+  liftmotor[1].Neutral();
   liftmotor[1].driver.Disable();
-  //   vacuum_pump_pin.Write(false);
+  air_pump_pin.Write(false);
   enabled = false;
 }
 
@@ -279,14 +268,14 @@ void GetBlock::SetTargetState(float stretch_pos_L, float stretch_pos_R,
                               float lift_speed_L, float lift_speed_R)
 {
   // 1->左抬升, 2->右抬升
-  target_state_pos[1] = lift_pos_L;
+  target_state_pos[1] = -lift_pos_L;
   target_state_pos[2] = lift_pos_R;
   target_state_speed[1] = lift_speed_L;
   target_state_speed[2] = lift_speed_R;
 
   // 3->左伸缩, 4->右伸缩
   target_state_pos[3] = stretch_pos_L;
-  target_state_pos[4] = stretch_pos_R;
+  target_state_pos[4] = -stretch_pos_R;
   target_state_speed[3] = stretch_speed_L;
   target_state_speed[4] = stretch_speed_R;
 
@@ -348,7 +337,7 @@ void GetBlock::Get_200Block()
   float target_lift = blockheight_2_liftmotortargetpos[0];
   SetTargetState(130000.0f, 130000.0f, 0.0f, 0.0f, target_lift, target_lift);
 
-  vacuum_pump_pin.Write(true);
+  //  vacuum_pump_pin.Write(true);
 }
 // ======================== 取块/放块动作 ========================
 
@@ -361,7 +350,7 @@ void GetBlock::Get_400Block()
   // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
   SetTargetState(130000.0f, 130000.0f, 0.0f, 0.0f, target_lift, target_lift);
 
-  vacuum_pump_pin.Write(true);
+  //  vacuum_pump_pin.Write(true);
 }
 
 void GetBlock::Get_600Block()
@@ -373,7 +362,7 @@ void GetBlock::Get_600Block()
   // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
   SetTargetState(130000.0f, 130000.0f, 0.0f, 0.0f, target_lift, target_lift);
 
-  vacuum_pump_pin.Write(true);
+  //  vacuum_pump_pin.Write(true);
 }
 
 void GetBlock::ReleaseBlock()
@@ -387,7 +376,7 @@ void GetBlock::ReleaseBlock()
                  target_state_pos[5], target_state_pos[6],
                  target_state_pos[1], target_state_pos[2]);
 
-  vacuum_pump_pin.Write(false);
+  //  vacuum_pump_pin.Write(false);
   // release_air_pin.Write(false); // 如果放块时需要操作泄气阀，可以在这里解开注释
 }
 
