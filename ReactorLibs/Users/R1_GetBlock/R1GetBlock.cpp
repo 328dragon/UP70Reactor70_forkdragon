@@ -10,7 +10,7 @@ extern SystemType &System;
 // 遥控器按键 8 存储高度的计数器（1→存200块高度，2→400，3→600）
 static uint8_t entertime = 0;
 int suck_flag = 0;
-float lift_target_pos = 0.0f;
+float lift_target_pos = 400000.0f;
 
 float lift_pos_kp = 2.0f;
 float lift_pos_ki = 0.0f;
@@ -33,9 +33,9 @@ void GetBlock::Start()
 
   // ---- 大疆抬升电机左（M3508，减速比19，CAN1 ID:5，位置串级模式）----
   liftmotor[0].Init(Hardware::hcan_main, 5, DJI_C620);
-  liftmotor[0].ConfigPID().AsPosC().Pos_Coeff(1.5f, 0.0f, 0.2f) // 位置环 kp/ki/kd（待整定）
+  liftmotor[0].ConfigPID().AsPosC().Pos_Coeff(1.5f, 0.0f, 0.3f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(500.0f, 4000.0f)                               // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.05f, 0.003, 0.0f)                               // 速度环 kp/ki/kd（待整定）
+      .Spd_Coeff(0.04f, 0.003, 0.0f)                               // 速度环 kp/ki/kd（待整定）
       .Spd_Limit(3.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
@@ -43,9 +43,9 @@ void GetBlock::Start()
 
   // ---- 大疆抬升电机右（M3508，减速比19，CAN1 ID:6，位置串级模式）----
   liftmotor[1].Init(Hardware::hcan_main, 6, DJI_C620);
-  liftmotor[1].ConfigPID().AsPosC().Pos_Coeff(1.8f, 0.0f, 0.2f) // 位置环 kp/ki/kd（待整定）
+  liftmotor[1].ConfigPID().AsPosC().Pos_Coeff(1.8f, 0.0f, 0.3f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(500.0f, 4000.0f)                               // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.07f, 0.004, 0.0f)                               // 速度环 kp/ki/kd（待整定）
+      .Spd_Coeff(0.06f, 0.004, 0.0f)                               // 速度环 kp/ki/kd（待整定）
       .Spd_Limit(3.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
@@ -211,8 +211,8 @@ void GetBlock::Update()
     Stop();
   }
   
- liftmotor[0].targ_pos=-lift_target_pos;
- liftmotor[1].targ_pos=lift_target_pos;
+// liftmotor[0].targ_pos=-lift_target_pos;
+// liftmotor[1].targ_pos=lift_target_pos;
   // ---- 状态机 ----
   if (appstate == STATE_INIT)
   {
@@ -221,16 +221,65 @@ void GetBlock::Update()
     if (suck_flag == 1)
 		{
 		air_pump_pin.Write(1);
-		SetTargetState(1000000.0f, 1000000.0f, 1000000.0f, 1000000.0f, 400000.0f, 400000.0f);
+		SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
 		}
-     
-    else if (suck_flag == -1)
+        if (suck_flag == 2)
 		{
-		air_pump_pin.Write(0);
-		SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0, 0);
+		air_pump_pin.Write(1);
+		SetTargetState(3800000.0f, 3800000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
 		}
+    if (suck_flag==3)
+    {
+     SetTargetState(3800000.0f, 3800000.0f, 6000000.0f, 6000000.0f, lift_target_pos, lift_target_pos); 
+    }
+      if (suck_flag==4)
+    {
+     SetTargetState(0.0f, 0.0f, 6000000.0f,6000000.0f, lift_target_pos, lift_target_pos); 
+    }
+    if(suck_flag==5)
+    {
+
+      SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); 
+      air_pump_pin.Write(0);
+      suck_flag=0;
+    }
+
+    if(farcon.button_first_half[0] == 1)
+    {
+      suck_flag = 1;
+    }
+    if(farcon.button_first_half[1] == 1)
+    {
+      suck_flag = 2;
+    }
+  if(farcon.button_first_half[2] == 1)
+    {
+      suck_flag = 3;
+    }
+    if(farcon.button_first_half[3] == 1)
+    {
+      suck_flag = 4;
+    }
+    if(farcon.button_first_half[4] == 1)
+    {
+      suck_flag = 5;
+    }
+
+    if(farcon.button_second_half[0] == 1)
+    {
+      lift_target_pos=400000.0f;
+    }else  if(farcon.button_second_half[1] == 1)
+    {
+      lift_target_pos=600000.0f;
+    }
+    else  if(farcon.button_second_half[2] == 1)
+    {
+      lift_target_pos=800000.0f;
+    }
 
   }
+	
+	
 }
 
 // ======================== Enable / Stop ========================
