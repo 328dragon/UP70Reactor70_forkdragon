@@ -10,7 +10,7 @@ extern SystemType &System;
 // 遥控器按键 8 存储高度的计数器（1→存200块高度，2→400，3→600）
 static uint8_t entertime = 0;
 int suck_flag = 0;
-float lift_target_pos = 400000.0f;
+float lift_target_pos = 0.0f;
 
 float lift_pos_kp = 2.0f;
 float lift_pos_ki = 0.0f;
@@ -19,6 +19,8 @@ float lift_pos_kd = 0.0f;
 float lift_speed_kp = 0.001f;
 float lift_speed_ki = 0.0f;
 float lift_speed_kd = 0.0f;
+
+int air_flag = 0;
 
 void GetBlock::Start()
 {
@@ -35,8 +37,8 @@ void GetBlock::Start()
   liftmotor[0].Init(Hardware::hcan_main, 5, DJI_C620);
   liftmotor[0].ConfigPID().AsPosC().Pos_Coeff(1.5f, 0.0f, 0.3f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(500.0f, 4000.0f)                               // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.04f, 0.003, 0.0f)                               // 速度环 kp/ki/kd（待整定）
-      .Spd_Limit(3.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
+      .Spd_Coeff(0.04f, 0.003, 0.0f)                            // 速度环 kp/ki/kd（待整定）
+      .Spd_Limit(3.0f, 10.0f)                                   // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
   liftmotor[0].driver.Enable(); // 设负的向上，正的向下
@@ -45,8 +47,8 @@ void GetBlock::Start()
   liftmotor[1].Init(Hardware::hcan_main, 6, DJI_C620);
   liftmotor[1].ConfigPID().AsPosC().Pos_Coeff(1.8f, 0.0f, 0.3f) // 位置环 kp/ki/kd（待整定）
       .Pos_Limit(500.0f, 4000.0f)                               // 位置环积分限幅、输出速度限幅（rad/s）
-      .Spd_Coeff(0.06f, 0.004, 0.0f)                               // 速度环 kp/ki/kd（待整定）
-      .Spd_Limit(3.0f, 10.0f)                                    // 速度环积分限幅、电流输出限幅（code）
+      .Spd_Coeff(0.06f, 0.004, 0.0f)                            // 速度环 kp/ki/kd（待整定）
+      .Spd_Limit(3.0f, 10.0f)                                   // 速度环积分限幅、电流输出限幅（code）
       .CurLimit(10)
       .Apply();
   liftmotor[1].driver.Enable(); // 设正的向上，负的向下
@@ -91,9 +93,9 @@ void GetBlock::Start()
       .Apply();
   stretchmotor[1].driver.Enable(); // 右边target_pos是1000000左右合适，且-的往前
 
-	SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-  
-//  liftservo[0].Init(&htim5, TIM_CHANNEL_2);
+  SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+
+  //  liftservo[0].Init(&htim5, TIM_CHANNEL_2);
   appstate = STATE_INIT;
   Enable();
 }
@@ -212,76 +214,98 @@ void GetBlock::Update()
   {
     Stop();
   }
-  
-// liftmotor[0].targ_pos=-lift_target_pos;
-// liftmotor[1].targ_pos=lift_target_pos;
+
+  // liftmotor[0].targ_pos=-lift_target_pos;
+  // liftmotor[1].targ_pos=lift_target_pos;
+  if (air_flag == 1)
+  {
+    air_pump_pin.Write(true);
+  }
+  else if (air_flag == 0)
+  {
+    air_pump_pin.Write(false);
+  }
+
   // ---- 状态机 ----
   if (appstate == STATE_INIT)
   {
     //   rolldmmotor.SetPosVel(0.0f, 2.0f);
     // 参数顺序：左伸缩, 右伸缩, 左吸吮, 右吸吮, 左抬升, 右抬升
     if (suck_flag == 1)
-		{
-		air_pump_pin.Write(1);
-		SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
-		}
-        if (suck_flag == 2)
-		{
-		air_pump_pin.Write(1);
-		SetTargetState(3800000.0f, 3800000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
-		}
-    if (suck_flag==3)
     {
-     SetTargetState(3800000.0f, 3800000.0f, -10000000.0f, 10000000.0f, lift_target_pos, lift_target_pos); 
+      SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
     }
-      if (suck_flag==4)
+    if (suck_flag == 2)
     {
-     SetTargetState(0.0f, 0.0f, -10000000.0f,10000000.0f, lift_target_pos, lift_target_pos); 
+      SetTargetState(3900000.0f, 0.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
     }
-    if(suck_flag==5)
+    if (suck_flag == 3)
     {
+      SetTargetState(3900000.0f, 3900000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
+    }
+    if (suck_flag == 4)
+    {
+      SetTargetState(3900000.0f, 3900000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
+    }
 
-      SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); 
+    if (suck_flag == 5)
+    {
+      SetTargetState(3900000.0f, 3900000.0f, 10000000.0f, 10000000.0f, lift_target_pos, lift_target_pos);
+      for(int i=0;i<1000000;i++)
+      {
+
+      }
+      suck_flag = 6;
+    }
+    if (suck_flag == 6)
+    {
+      air_pump_pin.Write(1);
+    }
+    if (suck_flag == 7)
+    {
       air_pump_pin.Write(0);
+      SetTargetState(0.0f, 0.0f, 10000000.0f, 10000000.0f, lift_target_pos, lift_target_pos);
+    }
+    //回去
+    if (suck_flag == 8)
+    {
+      SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0, 0);
       suck_flag=0;
-    }
 
-    if(farcon.button_first_half[0] == 1)
-    {
-      suck_flag = 1;
     }
-    if(farcon.button_first_half[1] == 1)
-    {
-      suck_flag = 2;
-    }
-  if(farcon.button_first_half[2] == 1)
-    {
-      suck_flag = 3;
-    }
-    if(farcon.button_first_half[3] == 1)
-    {
-      suck_flag = 4;
-    }
-    if(farcon.button_first_half[4] == 1)
-    {
-      suck_flag = 5;
-    }
+    //   if(farcon.button_first_half[0] == 1)
+    //   {
+    //     suck_flag = 1;
+    //   }
+    //   if(farcon.button_first_half[1] == 1)
+    //   {
+    //     suck_flag = 2;
+    //   }
+    // if(farcon.button_first_half[2] == 1)
+    //   {
+    //     suck_flag = 3;
+    //   }
+    //   if(farcon.button_first_half[3] == 1)
+    //   {
+    //     suck_flag = 4;
+    //   }
+    //   if(farcon.button_first_half[4] == 1)
+    //   {
+    //     suck_flag = 5;
+    //   }
 
-    if(farcon.button_second_half[0] == 1)
-    {
-      lift_target_pos=400000.0f;
-    }else  if(farcon.button_second_half[1] == 1)
-    {
-      lift_target_pos=3800000.0f;
-    }
-    else  if(farcon.button_second_half[2] == 1)
-    {
-      lift_target_pos=580000.0f;
-    }
-
+    //   if(farcon.button_second_half[0] == 1)
+    //   {
+    //     lift_target_pos=400000.0f;
+    //   }else  if(farcon.button_second_half[1] == 1)
+    //   {
+    //     lift_target_pos=3800000.0f;
+    //   }
+    //   else  if(farcon.button_second_half[2] == 1)
+    //   {
+    //     lift_target_pos=580000.0f;
+    //   }
   }
-	
-	
 }
 
 // ======================== Enable / Stop ========================
@@ -331,7 +355,7 @@ void GetBlock::SetTargetState(float stretch_pos_L, float stretch_pos_R,
   target_state_speed[4] = stretch_speed_R;
 
   // 5->左吸吮, 6->右吸吮
-  target_state_pos[5] = suck_pos_L;
+  target_state_pos[5] = -suck_pos_L;
   target_state_pos[6] = suck_pos_R;
   target_state_speed[5] = suck_speed_L;
   target_state_speed[6] = suck_speed_R;
