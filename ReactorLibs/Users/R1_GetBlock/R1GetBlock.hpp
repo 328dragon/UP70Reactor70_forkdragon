@@ -36,8 +36,6 @@ public:
 
 Servo liftservo[2]; // 抬升舵机（大疆 M3508，CAN1 ID:左5，右6）预留
 
-    // BSP::GPIO::Inst vacuum_pump_pin;
-    // BSP::GPIO::Inst release_air_pin;
  BSP::GPIO::Inst air_pump_pin;
 
 private:

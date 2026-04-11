@@ -22,6 +22,7 @@ float lift_speed_kd = 0.0f;
 
 int air_flag = 0;
 
+float debug_angle=0;
 void GetBlock::Start()
 {
   // GPIO 注册，考虑是否放到Config.cpp里统一注册，这样才不会影响框架的功能（在改变硬件时只需要改变config文件），在这里直接用注册后的实例的名字
@@ -95,7 +96,12 @@ void GetBlock::Start()
 
   SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 
-  //  liftservo[0].Init(&htim5, TIM_CHANNEL_2);
+  liftservo[0].Init(ToID(&htim5), TIM_CHANNEL_2);//-35度锁死，0度松开
+  liftservo[0].Enable();
+
+  liftservo[1].Init(ToID(&htim5), TIM_CHANNEL_3);//15度锁死，0度松开
+  liftservo[1].Enable();
+
   appstate = STATE_INIT;
   Enable();
 }
@@ -209,14 +215,15 @@ void GetBlock::Start()
 
 void GetBlock::Update()
 {
+
+
+
   GetTargetBlockInfo();
   if (System.out_from_debugmode)
   {
     Stop();
   }
 
-  // liftmotor[0].targ_pos=-lift_target_pos;
-  // liftmotor[1].targ_pos=lift_target_pos;
   if (air_flag == 1)
   {
     air_pump_pin.Write(true);
@@ -238,22 +245,23 @@ void GetBlock::Update()
     if (suck_flag == 2)
     {
       SetTargetState(3900000.0f, 0.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
+    liftservo[0].SetAngle(-35);
+     liftservo[1].SetAngle(15);
     }
     if (suck_flag == 3)
     {
-      SetTargetState(3900000.0f, 3900000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
+      SetTargetState(3900000.0f, 3800000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
     }
     if (suck_flag == 4)
     {
-      SetTargetState(3900000.0f, 3900000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
+      SetTargetState(3900000.0f, 3800000.0f, 0.0f, 0.0f, lift_target_pos, lift_target_pos);
     }
 
     if (suck_flag == 5)
     {
-      SetTargetState(3900000.0f, 3900000.0f, 10000000.0f, 10000000.0f, lift_target_pos, lift_target_pos);
-      for(int i=0;i<1000000;i++)
+      SetTargetState(3900000.0f, 3800000.0f, 20000000.0f, 20000000.0f, lift_target_pos, lift_target_pos);
+      for (int i = 0; i < 2000000; i++)
       {
-
       }
       suck_flag = 6;
     }
@@ -264,14 +272,15 @@ void GetBlock::Update()
     if (suck_flag == 7)
     {
       air_pump_pin.Write(0);
-      SetTargetState(0.0f, 0.0f, 10000000.0f, 10000000.0f, lift_target_pos, lift_target_pos);
+      SetTargetState(0.0f, 0.0f, 20000000.0f, 20000000.0f, lift_target_pos, lift_target_pos);
     }
-    //回去
+    // 回去
     if (suck_flag == 8)
     {
       SetTargetState(0.0f, 0.0f, 0.0f, 0.0f, 0, 0);
-      suck_flag=0;
-
+          liftservo[0].SetAngle(0);
+     liftservo[1].SetAngle(0);
+      suck_flag = 0;
     }
     //   if(farcon.button_first_half[0] == 1)
     //   {
@@ -296,14 +305,14 @@ void GetBlock::Update()
 
     //   if(farcon.button_second_half[0] == 1)
     //   {
-    //     lift_target_pos=400000.0f;
+    //     lift_target_pos=0.0f;
     //   }else  if(farcon.button_second_half[1] == 1)
     //   {
-    //     lift_target_pos=3800000.0f;
+    //     lift_target_pos=1800000.0f;
     //   }
     //   else  if(farcon.button_second_half[2] == 1)
     //   {
-    //     lift_target_pos=580000.0f;
+    //     lift_target_pos=380000.0f;
     //   }
   }
 }
@@ -330,6 +339,8 @@ void GetBlock::Stop()
   liftmotor[1].Neutral();
   liftmotor[1].driver.Disable();
   air_pump_pin.Write(false);
+  liftservo[0].Disable();
+  liftservo[1].Disable();
   enabled = false;
 }
 
