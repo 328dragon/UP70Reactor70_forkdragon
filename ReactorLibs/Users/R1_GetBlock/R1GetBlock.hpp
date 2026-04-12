@@ -70,7 +70,7 @@ public:
                               ,{0.0f, 0.0f}};
 
     // 取 200/400/600 块时抬升电机3508对应的 total_angle 目标值
-    float blockheight_2_liftmotortargetpos[3] = {-150000.0f, -750000.0f, -1400000.0f};
+    float blockheight_2_liftmotortargetpos[3] = {0.0f, 520000.0f, 960000.0f};
 
     // 遥控器按键边沿检测
     uint8_t last_btn_state[8] = {0};

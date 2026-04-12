@@ -25,9 +25,6 @@ int air_flag = 0;
 float debug_angle=0;
 void GetBlock::Start()
 {
-  // GPIO 注册，考虑是否放到Config.cpp里统一注册，这样才不会影响框架的功能（在改变硬件时只需要改变config文件），在这里直接用注册后的实例的名字
-  //  vacuum_pump_pin = BSP::GPIO::Inst({'E', 4});
-  // release_air_pin = BSP::GPIO::Inst({'H', 4});
   air_pump_pin = BSP::GPIO::Inst({'D', 12});
   // ---- 达妙翻滚电机 ----
   // rolldmmotor.Init(Hardware::hcan_sub, 0x11, 0x10, DM_MODE_POSANDVEL);
@@ -215,8 +212,6 @@ void GetBlock::Start()
 
 void GetBlock::Update()
 {
-
-
 
   GetTargetBlockInfo();
   if (System.out_from_debugmode)
